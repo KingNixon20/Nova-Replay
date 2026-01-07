@@ -1,0 +1,14 @@
+target/
+**/*.rs.bk
+**/*~
+AppImage*
+.packaging/
+.DS_Store
+/__pycache__
+/recordings
+/AppDir
+img/logo.jpeg
+linuxdeploy-x86_64.AppImage
+Nova_Replay-x86_64.AppImage
+build_appimage.sh
+appimagetool-x86_64.AppImage
