@@ -49,6 +49,8 @@ class Recorder:
         self.proc: Optional[subprocess.Popen] = None
         self.on_stop: Optional[Callable[[str], None]] = None
         self.preferred_backend = preferred_backend or 'auto'
+        # optional callback to report startup errors to the UI: on_error(message)
+        self.on_error: Optional[Callable[[str], None]] = None
         if filename:
             self.outfile = filename
         else:
@@ -88,13 +90,87 @@ class Recorder:
 
         if backend == 'ffmpeg-x11':
             cmd = self._ffmpeg_x11_cmd()
-        elif backend == 'pipewire':
-            cmd = self._ffmpeg_pipewire_cmd()
-        elif backend == 'wf-recorder':
-            cmd = self._wf_recorder_cmd()
-        else:
-            cmd = self._ffmpeg_x11_cmd()
+            print("Starting recorder with:", " ".join(cmd))
+            self.proc = subprocess.Popen(cmd)
+            return
 
+        if backend == 'pipewire':
+            cmd = self._ffmpeg_pipewire_cmd()
+            print("Starting recorder with:", " ".join(cmd))
+            self.proc = subprocess.Popen(cmd)
+            return
+
+        if backend == 'wf-recorder':
+            cmd = self._wf_recorder_cmd()
+            print("Starting recorder with:", " ".join(cmd))
+            # start wf-recorder but monitor for quick failure (compositor missing wlr-screencopy)
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            # give it a moment to fail fast
+            try:
+                time.sleep(0.5)
+            except Exception:
+                pass
+            rc = proc.poll()
+            if rc is not None and rc != 0:
+                # process exited quickly; read stderr for reason
+                try:
+                    err = proc.stderr.read().decode(errors='ignore')
+                except Exception:
+                    err = ''
+                print('wf-recorder failed to start:', err)
+                # choose fallback based on display
+                if disp == 'x11':
+                    print('Falling back to ffmpeg x11grab')
+                    cmd2 = self._ffmpeg_x11_cmd()
+                    print('Starting recorder with:', ' '.join(cmd2))
+                    self.proc = subprocess.Popen(cmd2)
+                    return
+                elif disp == 'wayland':
+                    # attempt ffmpeg pipewire fallback if ffmpeg available
+                    if is_command_available('ffmpeg'):
+                        # ensure ffmpeg supports the pipewire protocol
+                        if not self._ffmpeg_supports_pipewire():
+                            msg = ('ffmpeg on this system lacks PipeWire support; install an ffmpeg build with PipeWire support or enable PipeWire/xdg-desktop-portal.')
+                            print(msg)
+                            if callable(getattr(self, 'on_error', None)):
+                                try:
+                                    self.on_error(msg)
+                                except Exception:
+                                    pass
+                            return
+                        print('Attempting ffmpeg pipewire fallback (best-effort)')
+                        cmd2 = self._ffmpeg_pipewire_cmd()
+                        print('Starting recorder with:', ' '.join(cmd2))
+                        p2 = subprocess.Popen(cmd2, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                        try:
+                            time.sleep(0.5)
+                        except Exception:
+                            pass
+                        rc2 = p2.poll()
+                        if rc2 is None:
+                            # ffmpeg seems to be running
+                            self.proc = p2
+                            return
+                        else:
+                            try:
+                                err2 = p2.stderr.read().decode(errors='ignore')
+                            except Exception:
+                                err2 = ''
+                            print('ffmpeg pipewire fallback failed:', err2)
+                            print('Please ensure PipeWire and xdg-desktop-portal are installed and configured for Wayland (KDE).')
+                            return
+                    else:
+                        print('ffmpeg not found; cannot fallback on Wayland. Install PipeWire/ffmpeg or use X11 backend.')
+                        return
+                else:
+                    print('Unknown display type; cannot fallback automatically.')
+                    return
+            # wf-recorder started successfully
+            self.proc = proc
+            return
+
+        # default fallback
+        cmd = self._ffmpeg_x11_cmd()
         print("Starting recorder with:", " ".join(cmd))
         self.proc = subprocess.Popen(cmd)
 
@@ -193,6 +269,24 @@ class Recorder:
         except Exception:
             pass
         return {"width": 1920, "height": 1080}
+
+    def _ffmpeg_supports_pipewire(self) -> bool:
+        """Return True if system ffmpeg recognizes the 'pipewire' protocol/input."""
+        try:
+            p = subprocess.run(['ffmpeg', '-protocols'], capture_output=True, text=True, timeout=2)
+            out = (p.stdout or '') + (p.stderr or '')
+            if 'pipewire' in out:
+                return True
+        except Exception:
+            pass
+        try:
+            p2 = subprocess.run(['ffmpeg', '-formats'], capture_output=True, text=True, timeout=2)
+            out2 = (p2.stdout or '') + (p2.stderr or '')
+            if 'pipewire' in out2:
+                return True
+        except Exception:
+            pass
+        return False
 
 
 def trim_clip(input_path: str, start: float, end: float, out_path: Optional[str] = None) -> str:

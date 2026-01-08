@@ -12,6 +12,43 @@ import json
 from thumbnail_renderer import render_decorated_thumbnail
 import shutil
 
+from datetime import datetime
+
+
+def move_to_trash(path: str) -> str:
+    """Move a file to the FreeDesktop Trash location and write a .trashinfo file.
+
+    Returns the destination path in the trash on success or raises on error.
+    """
+    trash_home = os.path.expanduser(os.environ.get('XDG_DATA_HOME', os.path.expanduser('~/.local/share')))
+    trash_dir = os.path.join(trash_home, 'Trash')
+    files_dir = os.path.join(trash_dir, 'files')
+    info_dir = os.path.join(trash_dir, 'info')
+    os.makedirs(files_dir, exist_ok=True)
+    os.makedirs(info_dir, exist_ok=True)
+
+    base = os.path.basename(path)
+    name, ext = os.path.splitext(base)
+    dest = base
+    i = 1
+    while os.path.exists(os.path.join(files_dir, dest)):
+        dest = f"{name}_{i}{ext}"
+        i += 1
+
+    dest_path = os.path.join(files_dir, dest)
+    shutil.move(path, dest_path)
+
+    info_path = os.path.join(info_dir, dest + '.trashinfo')
+    try:
+        with open(info_path, 'w') as f:
+            f.write('[Trash Info]\n')
+            f.write(f'Path={os.path.abspath(path)}\n')
+            f.write(f'DeletionDate={datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S") }\n')
+    except Exception:
+        pass
+
+    return dest_path
+
 
 class HotkeyManager:
     """Best-effort global hotkey registration using `pynput`.
@@ -54,14 +91,8 @@ class HotkeyManager:
 
 class NovaReplayWindow(Gtk.Window):
     def __init__(self):
-        super().__init__(title="Nova Replay")
-        self.set_default_size(1400, 900)
-        # load persisted settings (recordings dir, backend, hotkey)
-        try:
-            self.load_settings()
-        except Exception:
-            # safe no-op if loading fails
-            self.settings = {}
+        super().__init__(title="Nova")
+        self.set_default_size(1700, 950)
 
         # CSS styling for a modern look
         css = b"""
@@ -81,11 +112,14 @@ class NovaReplayWindow(Gtk.Window):
         .clip-row { padding: 8px; }
         .dim-label { color: #94a3b8; }
         /* Segmented control (dark mode pill) */
-        .segmented { background: #222426; border: 1px solid #2e3134; padding: 6px; border-radius: 999px; }
-        .segmented .seg-tab { background: transparent; color: #94a3b8; border-radius: 999px; padding: 6px 14px; margin: 2px; }
-        .segmented .seg-tab.active { background: #2d3336; color: #ffffff; }
+        .segmented { background: transparent; border: none; padding: 2px; border-radius: 999px; }
+        .segmented .seg-tab { background: transparent; color: #ffffff; border-radius: 999px; padding: 4px 10px; margin: 2px 4px; }
+        .segmented .seg-tab.active { background: rgba(255,255,255,0.06); color: #ffffff; }
         .segmented .seg-tab GtkLabel { color: inherit; }
-        .segmented-container { background: transparent; border-bottom: 1px solid #2e3134; padding-bottom: 8px; margin-bottom: 8px; }
+        .segmented-container { background: transparent; border-bottom: 1px solid #2e3134; padding-bottom: 4px; margin-bottom: 4px; }
+        .placeholder { background: transparent; border: none; }
+        /* lower tile area below thumbnails */
+        .tile-lower { background: #00ff00; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding: 6px; }
         """
         style_provider = Gtk.CssProvider()
         style_provider.load_from_data(css)
@@ -122,7 +156,8 @@ class NovaReplayWindow(Gtk.Window):
         sidebar.set_size_request(48, -1)
         try:
             sidebar.set_hexpand(False)
-            sidebar.set_vexpand(True)
+            # prevent vertical expansion so width-only animation doesn't affect height
+            sidebar.set_vexpand(False)
             sidebar.set_halign(Gtk.Align.START)
             sidebar.set_margin_start(4)
             sidebar.set_margin_end(4)
@@ -183,6 +218,33 @@ class NovaReplayWindow(Gtk.Window):
             pass
         btn_clips.get_style_context().add_class('nav-button')
         btn_clips.connect("clicked", lambda w: self.content_stack.set_visible_child_name('clips'))
+        # pack clips button immediately so subsequent buttons appear below it
+        sidebar.pack_start(btn_clips, False, False, 2)
+
+        # Editor button (under Clips)
+        btn_editor = Gtk.Button()
+        editor_icon_path = get_img_file('editor.png')
+        if os.path.exists(editor_icon_path):
+            try:
+                pix_e = GdkPixbuf.Pixbuf.new_from_file_at_scale(editor_icon_path, 28, 28, True)
+                btn_editor_img = Gtk.Image.new_from_pixbuf(pix_e)
+            except Exception:
+                btn_editor_img = Gtk.Image.new_from_file(editor_icon_path)
+        else:
+            btn_editor_img = Gtk.Image.new_from_icon_name('applications-graphics', Gtk.IconSize.MENU)
+        btn_editor.add(btn_editor_img)
+        btn_editor.set_tooltip_text('Editor')
+        btn_editor.set_size_request(48, 48)
+        btn_editor.set_relief(Gtk.ReliefStyle.NONE)
+        try:
+            btn_editor.set_hexpand(False)
+            btn_editor.set_vexpand(False)
+            btn_editor.set_halign(Gtk.Align.CENTER)
+        except Exception:
+            pass
+        btn_editor.get_style_context().add_class('nav-button')
+        btn_editor.connect("clicked", lambda w: self.content_stack.set_visible_child_name('editor'))
+        sidebar.pack_start(btn_editor, False, False, 2)
 
         # Settings button
         btn_settings = Gtk.Button()
@@ -208,19 +270,163 @@ class NovaReplayWindow(Gtk.Window):
         btn_settings.get_style_context().add_class('nav-button')
         btn_settings.connect("clicked", lambda w: self.content_stack.set_visible_child_name('settings'))
 
-        sidebar.pack_start(btn_clips, False, False, 2)
         # keep settings anchored to the bottom
         sidebar.pack_end(btn_settings, False, False, 6)
 
-        main_box.pack_start(sidebar, False, False, 0)
-        # thin black divider between sidebar and content
+        # Wrap sidebar in an EventBox so we can receive enter/leave events
+        self.sidebar = sidebar
+        self._sidebar_current_width = 48
+        self._sidebar_anim_id = None
+        self._sidebar_anim_target = None
+        self._sidebar_trigger_id = None
+        self._sidebar_animating = False
+        self._sidebar_hover_count = 0
+
+        sidebar_event = Gtk.EventBox()
+        try:
+            sidebar_event.set_visible_window(False)
+        except Exception:
+            pass
+        sidebar_event.add(self.sidebar)
+        try:
+            sidebar_event.set_vexpand(False)
+        except Exception:
+            pass
+
+        # animation helper
+        def _animate_sidebar_to(target_width: int):
+            # Clamp target and start a single ticker; if one is already running
+            # it will be canceled and replaced to pick up the new target.
+            try:
+                min_w, max_w = 48, 88
+                tgt_val = int(target_width)
+            except Exception:
+                tgt_val = target_width
+                min_w, max_w = 48, 88
+            tgt_val = max(min_w, min(max_w, tgt_val))
+            # cancel existing ticker to avoid overlaps
+            try:
+                if self._sidebar_anim_id:
+                    GLib.source_remove(self._sidebar_anim_id)
+                    self._sidebar_anim_id = None
+            except Exception:
+                pass
+            self._sidebar_anim_target = tgt_val
+            self._sidebar_animating = True
+
+            def _tick():
+                try:
+                    cur = int(self._sidebar_current_width)
+                    tgt = int(self._sidebar_anim_target)
+                except Exception:
+                    self._sidebar_animating = False
+                    return False
+                if cur == tgt:
+                    self._sidebar_animating = False
+                    self._sidebar_anim_id = None
+                    return False
+                # eased step (20% of remaining distance) for smoothness
+                diff = tgt - cur
+                step = int(diff * 0.20)
+                if step == 0:
+                    step = 1 if diff > 0 else -1
+                new = cur + step
+                # clamp to bounds and avoid overshoot
+                if new < min_w:
+                    new = min_w
+                if new > max_w:
+                    new = max_w
+                if (diff > 0 and new > tgt) or (diff < 0 and new < tgt):
+                    new = tgt
+                try:
+                    self._sidebar_current_width = new
+                    self.sidebar.set_size_request(new, -1)
+                except Exception:
+                    pass
+                return True
+
+            try:
+                self._sidebar_anim_id = GLib.timeout_add(16, _tick)
+            except Exception:
+                self._sidebar_anim_id = None
+
+        # enter/leave handlers
+        def _cancel_sidebar_trigger():
+            try:
+                if getattr(self, '_sidebar_trigger_id', None):
+                    GLib.source_remove(self._sidebar_trigger_id)
+                    self._sidebar_trigger_id = None
+            except Exception:
+                pass
+
+        def _do_expand():
+            try:
+                self._sidebar_trigger_id = None
+                self._sidebar_hover_count = getattr(self, '_sidebar_hover_count', 0) + 1
+                _animate_sidebar_to(88)
+            except Exception:
+                pass
+            return False
+
+        def _do_collapse():
+            try:
+                self._sidebar_trigger_id = None
+                self._sidebar_hover_count = max(0, getattr(self, '_sidebar_hover_count', 0) - 1)
+                if self._sidebar_hover_count == 0:
+                    _animate_sidebar_to(48)
+            except Exception:
+                pass
+            return False
+
+        def _on_sidebar_enter(_, __):
+            try:
+                # cancel any collapse that was scheduled
+                _cancel_sidebar_trigger()
+                # schedule expand after small delay to avoid accidental triggers
+                if not getattr(self, '_sidebar_trigger_id', None):
+                    self._sidebar_trigger_id = GLib.timeout_add(100, _do_expand)
+            except Exception:
+                pass
+            return False
+
+        def _on_sidebar_leave(_, __):
+            try:
+                # cancel any pending expand trigger
+                _cancel_sidebar_trigger()
+                # schedule collapse after small delay; collapse will only run if hover_count hits 0
+                if not getattr(self, '_sidebar_trigger_id', None):
+                    self._sidebar_trigger_id = GLib.timeout_add(100, _do_collapse)
+            except Exception:
+                pass
+            return False
+
+        try:
+            sidebar_event.connect('enter-notify-event', _on_sidebar_enter)
+            sidebar_event.connect('leave-notify-event', _on_sidebar_leave)
+        except Exception:
+            pass
+
+        main_box.pack_start(sidebar_event, False, False, 0)
+        # thin black divider between sidebar and content — wrap in an EventBox
         divider = Gtk.Box()
         try:
             divider.set_size_request(1, -1)
             divider.get_style_context().add_class('side-divider')
         except Exception:
             pass
-        main_box.pack_start(divider, False, False, 0)
+        divider_event = Gtk.EventBox()
+        try:
+            divider_event.set_visible_window(False)
+        except Exception:
+            pass
+        divider_event.add(divider)
+        try:
+            # treat divider enter/leave as part of the hover zone
+            divider_event.connect('enter-notify-event', _on_sidebar_enter)
+            divider_event.connect('leave-notify-event', _on_sidebar_leave)
+        except Exception:
+            pass
+        main_box.pack_start(divider_event, False, False, 0)
 
         # Content stack
         self.content_stack = Gtk.Stack()
@@ -269,16 +475,71 @@ class NovaReplayWindow(Gtk.Window):
         # Clips view (grid of thumbnails)
         clips_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         try:
-            clips_box.set_margin_top(100)
+            # remove empty space above the search area
+            clips_box.set_margin_top(0)
         except Exception:
             pass
         # segmented control above the thumbnail browser
         self.clip_filter_mode = 'all'
+        # search query for filtering thumbnails
+        self.search_query = ''
+        self._search_debounce_id = None
         seg_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         seg_box.get_style_context().add_class('segmented')
         # container provides transparent background + dividing line
         seg_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         seg_container.get_style_context().add_class('segmented-container')
+        # Search box: placed above the segmented tabs
+        try:
+            search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            try:
+                # add a little padding around the search box
+                search_box.set_margin_top(8)
+                search_box.set_margin_bottom(6)
+                search_box.set_margin_start(6)
+                search_box.set_margin_end(6)
+            except Exception:
+                pass
+            self.search_entry = Gtk.SearchEntry()
+            try:
+                self.search_entry.set_placeholder_text('Search clips')
+            except Exception:
+                pass
+            # give the entry some internal margin so it feels padded
+            try:
+                self.search_entry.set_margin_top(4)
+                self.search_entry.set_margin_bottom(4)
+                self.search_entry.set_margin_start(6)
+                self.search_entry.set_margin_end(6)
+            except Exception:
+                pass
+            self.search_entry.set_hexpand(True)
+
+            def _do_search():
+                try:
+                    # commit the query and refresh
+                    self.search_query = (self.search_entry.get_text() or '').strip()
+                    self._search_debounce_id = None
+                    self.refresh_clips()
+                except Exception:
+                    pass
+                return False
+
+            def _on_search_changed(entry):
+                try:
+                    # debounce rapid input
+                    if getattr(self, '_search_debounce_id', None):
+                        GLib.source_remove(self._search_debounce_id)
+                        self._search_debounce_id = None
+                    self._search_debounce_id = GLib.timeout_add(200, _do_search)
+                except Exception:
+                    pass
+
+            self.search_entry.connect('changed', _on_search_changed)
+            search_box.pack_start(self.search_entry, True, True, 0)
+            seg_container.pack_start(search_box, False, False, 6)
+        except Exception:
+            pass
         tabs = [('All Videos', 'all'), ('Full Sessions', 'full'), ('Clips', 'clips')]
         self._seg_buttons = []
 
@@ -316,31 +577,62 @@ class NovaReplayWindow(Gtk.Window):
             pass
 
         seg_container.pack_start(seg_box, False, False, 0)
-        clips_box.pack_start(seg_container, False, False, 6)
+        clips_box.pack_start(seg_container, False, False, 2)
         self.clip_scrolled = Gtk.ScrolledWindow()
         self.flow = Gtk.FlowBox()
-        self.flow_cols = 4
+        # Increase grid density: add two more columns
+        self.flow_cols = 6
         self.flow.set_max_children_per_line(self.flow_cols)
-        self.flow.set_min_children_per_line(2)
+        # allow a sensible minimum per line when narrow
+        self.flow.set_min_children_per_line(3)
         self.flow.set_selection_mode(Gtk.SelectionMode.NONE)
         self.flow.set_row_spacing(6)
         self.flow.set_column_spacing(6)
-        # default thumb size (will be updated on resize)
-        self.thumb_size = (160, 90)
+        # default thumb size (fixed to prevent growing when few items)
+        self.thumb_size = (240, 245)
+        # extra space reserved under the image for actions; will be reduced if needed
+        self.tile_extra_h = 48
+        # enforce maximum total tile height (image + lower area)
+        self.MAX_TILE_HEIGHT = 150
+        # how many rows of thumbnails to display (fixed grid height)
+        self.grid_rows = 3
         # react to scroller resize to compute thumb sizes that fit container width
         def on_scrolled_alloc(w, allocation):
             try:
+                # Maintain fixed thumbnail size; do not resize tiles based on container.
+                # Determine how many columns fit, but keep tile size constant.
                 width = allocation.width
                 cols = max(1, getattr(self, 'flow_cols', 4))
                 spacing = self.flow.get_column_spacing() or 6
                 total_spacing = spacing * (cols - 1)
-                # compute per-tile width, cap at 480
-                per = max(64, min(480, (width - total_spacing) // cols - 8))
-                target_w = int(per)
-                target_h = int(target_w * 9 / 16)
-                if (target_w, target_h) != getattr(self, 'thumb_size', (0, 0)):
-                    self.thumb_size = (target_w, target_h)
-                    GLib.idle_add(self.refresh_clips)
+                # compute columns that can fit with the fixed thumb width
+                thumb_w = self.thumb_size[0]
+                possible_cols = max(1, (width + spacing) // (thumb_w + spacing))
+                # update flow columns but do not change thumb_size
+                if possible_cols != getattr(self, 'flow_cols', None):
+                    self.flow_cols = possible_cols
+                    try:
+                        self.flow.set_max_children_per_line(self.flow_cols)
+                    except Exception:
+                        pass
+                # enforce a fixed scroller height based on `self.grid_rows`
+                try:
+                    row_spacing = self.flow.get_row_spacing() or 6
+                    # compute total tile height respecting MAX_TILE_HEIGHT
+                    tile_total = min(self.thumb_size[1] + getattr(self, 'tile_extra_h', 48), getattr(self, 'MAX_TILE_HEIGHT', 50))
+                    padding = 12
+                    # reduce a few pixels per row so the image visually fills the tile
+                    per_row_shave = 8
+                    desired_h = int(self.grid_rows * (tile_total + row_spacing) + padding - (self.grid_rows * per_row_shave))
+                    if desired_h < 0:
+                        desired_h = int(self.grid_rows * (tile_total + row_spacing) + padding)
+                    self.clip_scrolled.set_vexpand(False)
+                    try:
+                        self.clip_scrolled.set_size_request(0, desired_h)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -351,6 +643,14 @@ class NovaReplayWindow(Gtk.Window):
         # (Trim controls removed — user will add trimming UI later)
 
         self.content_stack.add_titled(clips_box, 'clips', 'Clips')
+
+        # Editor view (placeholder)
+        editor_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        ed_lbl = Gtk.Label(label='Editor')
+        ed_lbl.get_style_context().add_class('dim-label')
+        ed_lbl.set_xalign(0)
+        editor_box.pack_start(ed_lbl, False, False, 8)
+        self.content_stack.add_titled(editor_box, 'editor', 'Editor')
 
         # Settings view
         settings_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -457,11 +757,18 @@ class NovaReplayWindow(Gtk.Window):
         self.selected_clip = None
         self.thumbs_dir = os.path.join(recorder.RECORDINGS_DIR, 'thumbnails')
         os.makedirs(self.thumbs_dir, exist_ok=True)
+        # debounce timer id for thumbnail refresh during resize
+        self._thumb_resize_timer = None
         self.refresh_clips()
 
         # Optional global hotkey manager (best-effort)
         self.hotkeys = HotkeyManager(self.toggle_recording)
         self.hotkeys.start()
+        # mark that initialization finished (used by splash logic)
+        try:
+            self._loaded = True
+        except Exception:
+            self._loaded = True
 
     def on_destroy(self, *args):
         # cleanup recorder and hotkeys
@@ -571,6 +878,30 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
 
+    def _set_image_cover(self, widget: Gtk.Image, path: str, target_w: int, target_h: int, overfill: int = 12):
+        """Load `path` into `widget` as a pixbuf scaled to *cover* the target size.
+
+        The pixbuf will be scaled so both dimensions are >= target (plus overfill),
+        then set on the widget. Falls back to `set_from_file` on error.
+        """
+        try:
+            pb = GdkPixbuf.Pixbuf.new_from_file(path)
+            ow = pb.get_width()
+            oh = pb.get_height()
+            if ow == 0 or oh == 0:
+                widget.set_from_file(path)
+                return
+            scale = max((target_w + overfill) / float(ow), (target_h + overfill) / float(oh))
+            new_w = max(1, int(ow * scale))
+            new_h = max(1, int(oh * scale))
+            scaled = pb.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
+            widget.set_from_pixbuf(scaled)
+        except Exception:
+            try:
+                widget.set_from_file(path)
+            except Exception:
+                pass
+
     def on_start(self, _):
         mode = self.mode_combo.get_active_text()
         # determine preferred backend from settings
@@ -596,6 +927,11 @@ class NovaReplayWindow(Gtk.Window):
         # let Recorder choose a timestamped filename to avoid overwriting
         self.recorder = recorder.Recorder(mode=mode, preferred_backend=pref)
         self.recorder.on_stop = self.on_record_stop
+        # report recorder startup errors into the UI
+        try:
+            self.recorder.on_error = lambda msg: GLib.idle_add(self._alert, msg)
+        except Exception:
+            pass
         self.recorder.start()
         self.start_btn.set_sensitive(False)
         self.stop_btn.set_sensitive(True)
@@ -639,66 +975,102 @@ class NovaReplayWindow(Gtk.Window):
         else:
             filtered = files
         files = filtered
+        # apply search filter (case-insensitive substring match)
+        try:
+            q = (getattr(self, 'search_query', '') or '').strip().lower()
+            if q:
+                files = [f for f in files if q in f.lower()]
+        except Exception:
+            pass
         for f in files:
             path = os.path.join(recorder.RECORDINGS_DIR, f)
             # build a tile
             tile = Gtk.EventBox()
             tile_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             try:
-                tile_box.set_size_request(96, 96)
+                # enforce a fixed tile size so tiles cannot grow taller than the
+                # configured thumbnail plus actions area, but clamp to MAX_TILE_HEIGHT
+                orig_tw, orig_th = getattr(self, 'thumb_size', (240, 135))
+                extra_h = getattr(self, 'tile_extra_h', 48)
+                total_h = min(orig_th + extra_h, getattr(self, 'MAX_TILE_HEIGHT', 50))
+                # compute image area height and lower area height
+                img_h = max(0, min(orig_th, total_h))
+                lower_h = max(0, total_h - img_h)
+                # enforce 16:9 image area: compute target width from img_h
+                target_w = int(max(48, round(img_h * 16.0 / 9.0)))
+                # do not exceed configured thumb width
+                try:
+                    target_w = min(orig_tw, target_w)
+                except Exception:
+                    pass
+                tile_box.set_size_request(target_w, total_h)
                 tile_box.set_hexpand(False)
                 tile_box.set_vexpand(False)
             except Exception:
+                img_h = getattr(self, 'thumb_size', (240,135))[1]
+                lower_h = getattr(self, 'tile_extra_h', 48)
                 pass
             thumb_path = os.path.join(self.thumbs_dir, f + '.png')
-            target_w, target_h = getattr(self, 'thumb_size', (160, 90))
-            decor_base = os.path.splitext(thumb_path)[0] + f'_{target_w}x{target_h}_decor'
+            # use the computed image height and target width for decorated filenames
+            target_h = img_h
+            try:
+                decor_base = os.path.splitext(thumb_path)[0] + f'_{target_w}x{target_h}_decor'
+            except Exception:
+                decor_base = os.path.splitext(thumb_path)[0]
             normal_decor = decor_base + '.png'
             hover_decor = decor_base + '_hover.png'
             if os.path.exists(normal_decor):
-                img = Gtk.Image.new_from_file(normal_decor)
+                img = Gtk.Image()
                 img._normal = normal_decor
                 img._hover = hover_decor if os.path.exists(hover_decor) else normal_decor
                 try:
-                    img.set_size_request(target_w, target_h)
+                    # set the pixbuf so it covers the image area (img_h)
+                    self._set_image_cover(img, normal_decor, target_w, img_h, overfill=12)
+                    img.set_size_request(target_w, img_h)
                 except Exception:
-                    pass
+                    try:
+                        img.set_from_file(normal_decor)
+                    except Exception:
+                        pass
             else:
                 img = Gtk.Image.new_from_icon_name('video-x-generic', Gtk.IconSize.DIALOG)
                 try:
-                    img.set_size_request(target_w, target_h)
+                    img.set_size_request(target_w, img_h)
                 except Exception:
                     pass
                 # generate thumbnail frame and decorated images in background if ffmpeg available
                 if shutil.which('ffmpeg'):
-                    def gen(p=path, tp=thumb_path, nb=decor_base, widget=img, tw=target_w, th=target_h):
+                    def gen(p=path, tp=thumb_path, nb=decor_base, widget=img, tw=target_w, th=target_h, ih=img_h):
                         try:
                             # extract a frame sized to target
-                            subprocess.call(['ffmpeg', '-y', '-ss', '00:00:01', '-i', p, '-vframes', '1', '-q:v', '2', '-s', f'{tw}x{th}', tp])
+                            subprocess.call(['ffmpeg', '-y', '-ss', '00:00:01', '-i', p, '-vframes', '1', '-q:v', '2', '-s', f'{tw}x{ih}', tp])
                             # render decorated normal + hover
                             try:
-                                render_decorated_thumbnail(tp, nb, size=(tw, th), radius=12)
+                                render_decorated_thumbnail(tp, nb, size=(tw, ih), radius=12)
                             except Exception:
                                 pass
                             # prefer decorated normal if created, else fallback to raw frame
                             if os.path.exists(nb + '.png'):
-                                GLib.idle_add(widget.set_from_file, nb + '.png')
+                                GLib.idle_add(self._set_image_cover, widget, nb + '.png', tw, ih, 12)
                                 # store paths for hover
                                 widget._normal = nb + '.png'
                                 widget._hover = nb + '_hover.png' if os.path.exists(nb + '_hover.png') else nb + '.png'
                             else:
-                                GLib.idle_add(widget.set_from_file, tp)
+                                GLib.idle_add(self._set_image_cover, widget, tp, tw, ih, 12)
                                 widget._normal = tp
                                 widget._hover = tp
                         except Exception:
                             pass
                     threading.Thread(target=gen, daemon=True).start()
             tile_box.pack_start(img, True, True, 0)
-            lbl = Gtk.Label(label=f)
-            lbl.set_max_width_chars(24)
-            lbl.set_ellipsize(Pango.EllipsizeMode.END)
-            lbl.set_xalign(0)
-            tile_box.pack_start(lbl, False, False, 0)
+            # lower info area below the image (label + actions)
+            lower_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            try:
+                lower_box.set_size_request(tw, extra_h)
+                lower_box.get_style_context().add_class('tile-lower')
+            except Exception:
+                pass
+            # filename label removed from thumbnail view (keeps lower area for actions only)
 
             # clicking selects
             def on_click(ev, p=path, widget=tile):
@@ -711,7 +1083,7 @@ class NovaReplayWindow(Gtk.Window):
             def on_enter(w, event, widget_img=img):
                 try:
                     if hasattr(widget_img, '_hover') and widget_img._hover:
-                        widget_img.set_from_file(widget_img._hover)
+                        GLib.idle_add(self._set_image_cover, widget_img, widget_img._hover, target_w, target_h, 12)
                 except Exception:
                     pass
                 return False
@@ -719,7 +1091,7 @@ class NovaReplayWindow(Gtk.Window):
             def on_leave(w, event, widget_img=img):
                 try:
                     if hasattr(widget_img, '_normal') and widget_img._normal:
-                        widget_img.set_from_file(widget_img._normal)
+                        GLib.idle_add(self._set_image_cover, widget_img, widget_img._normal, target_w, target_h, 12)
                 except Exception:
                     pass
                 return False
@@ -735,21 +1107,61 @@ class NovaReplayWindow(Gtk.Window):
             play.connect('clicked', lambda w, p=path: subprocess.Popen(['mpv', p]) if shutil.which('mpv') else subprocess.Popen(['xdg-open', p]))
             delb = Gtk.Button()
             delb.add(Gtk.Image.new_from_icon_name('user-trash', Gtk.IconSize.MENU))
-            def on_del(_, p=path, tp=thumb_path, widget=tile):
+            def on_del(_, p=path, tp=thumb_path, widget=tile, filename=f):
+                # ask for confirmation, then move to Trash instead of permanent delete
                 try:
-                    os.remove(p)
+                    dlg = Gtk.MessageDialog(self, 0, Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL,
+                                            f"Move '{os.path.basename(p)}' to Trash?")
+                    res = dlg.run()
+                    dlg.destroy()
+                    if res != Gtk.ResponseType.OK:
+                        return
+                except Exception:
+                    # fallback: require confirmation via simple alert
+                    try:
+                        self._alert('Confirm delete')
+                    except Exception:
+                        pass
+                    return
+
+                try:
+                    moved = move_to_trash(p)
+                except Exception as e:
+                    try:
+                        self._alert(f"Failed to move to Trash: {e}")
+                    except Exception:
+                        pass
+                    return
+
+                # remove any generated thumbnails/decorations for this entry
+                try:
+                    base_noext = os.path.splitext(filename)[0]
+                    for fn in os.listdir(self.thumbs_dir):
+                        if fn.startswith(base_noext):
+                            try:
+                                os.remove(os.path.join(self.thumbs_dir, fn))
+                            except Exception:
+                                pass
                 except Exception:
                     pass
+
                 try:
-                    if os.path.exists(tp):
-                        os.remove(tp)
+                    # remove tile from UI
+                    self.flow.remove(widget)
                 except Exception:
                     pass
-                self.flow.remove(widget)
+
             delb.connect('clicked', on_del)
             actions.pack_start(play, False, False, 0)
+            # spacer to push the delete button to the right
+            try:
+                spacer = Gtk.Box()
+                actions.pack_start(spacer, True, True, 0)
+            except Exception:
+                pass
             actions.pack_start(delb, False, False, 0)
-            tile_box.pack_start(actions, False, False, 0)
+            lower_box.pack_start(actions, False, False, 0)
+            tile_box.pack_start(lower_box, False, False, 0)
 
             tile.add(tile_box)
             try:
@@ -762,42 +1174,60 @@ class NovaReplayWindow(Gtk.Window):
             self.flow.add(tile)
         # if only one row, limit scroller height so tiles don't span full window
         try:
-            import math
-            cols = max(1, getattr(self, 'flow_cols', 8))
-            rows = math.ceil(len(files) / cols) if cols > 0 else 1
-            tile_h = 96
-            row_spacing = 6
-            padding = 40
-            max_h = rows * (tile_h + row_spacing) + padding
-            if rows <= 1:
-                self.clip_scrolled.set_vexpand(False)
+            # Allow the scroller to expand/shrink naturally during window resize.
+            # Previously we set a fixed size_request for small row counts which
+            # prevented shrinking; remove that constraint so the window can be made smaller.
+            self.clip_scrolled.set_vexpand(True)
+        except Exception:
+            pass
+        # ensure minimum grid slots by adding placeholders so layout stays organized
+        try:
+            real_count = len(files)
+            cols = max(1, getattr(self, 'flow_cols', 6))
+            total_slots = int(self.grid_rows) * int(cols)
+            need = max(0, total_slots - real_count)
+            for i in range(need):
+                ph = Gtk.EventBox()
+                ph_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
                 try:
-                    self.clip_scrolled.set_size_request(0, int(max_h))
+                    tw, th = getattr(self, 'thumb_size', (240, 135))
+                    extra_h = 48
+                    ph_box.set_size_request(tw, th + extra_h)
+                    ph_box.set_hexpand(False)
+                    ph_box.set_vexpand(False)
                 except Exception:
                     pass
-            else:
-                self.clip_scrolled.set_vexpand(True)
                 try:
-                    # reset size request to allow normal expansion
-                    self.clip_scrolled.set_size_request(0, 0)
+                    empty_img = Gtk.Box()
+                    empty_img.set_size_request(tw, th)
+                    ph_box.pack_start(empty_img, True, True, 0)
                 except Exception:
                     pass
+                # keep placeholder transparent; do not add a colored lower area
+                ph.add(ph_box)
+                # make placeholder invisible (reserve layout space only)
+                try:
+                    ph.get_style_context().add_class('placeholder')
+                    ph.set_sensitive(False)
+                except Exception:
+                    pass
+                self.flow.add(ph)
         except Exception:
             pass
         self.flow.show_all()
-        # if nothing matched, show a gentle empty-state message
-        if len(self.flow.get_children()) == 0:
-            msg = ''
-            if getattr(self, 'clip_filter_mode', 'all') == 'full':
-                msg = 'No full sessions found.'
-            elif getattr(self, 'clip_filter_mode', 'all') == 'clips':
-                msg = 'No edited clips found.'
-            else:
-                msg = 'No videos found.'
-            lbl = Gtk.Label(label=msg)
-            lbl.get_style_context().add_class('dim-label')
-            self.flow.add(lbl)
-            self.flow.show_all()
+
+    def _do_refresh_thumbs(self):
+        """Called by the timeout; trigger a single refresh and clear timer."""
+        try:
+            self.refresh_clips()
+        except Exception:
+            pass
+        try:
+            # clear stored timer id
+            self._thumb_resize_timer = None
+        except Exception:
+            pass
+        return False
 
     def get_selected_clip(self):
         return self.selected_clip
@@ -856,10 +1286,122 @@ class NovaReplayWindow(Gtk.Window):
         dialog.destroy()
 
 
+def _create_splash_window():
+    # Use a normal top-level window but remove decorations (titlebar)
+    splash = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
+    try:
+        splash.set_decorated(False)
+    except Exception:
+        pass
+    # keep above so it's visible while loading
+    try:
+        splash.set_keep_above(True)
+    except Exception:
+        pass
+    # Some window managers ignore set_decorated; force override-redirect once
+    # the toplevel is realized so the WM will not draw decorations.
+    def _on_splash_realize(w):
+        try:
+            gw = w.get_window()
+            if gw is not None:
+                gw.set_override_redirect(True)
+        except Exception:
+            pass
+
+    try:
+        splash.connect('realize', _on_splash_realize)
+    except Exception:
+        pass
+    splash.set_default_size(480, 240)
+    splash.set_resizable(False)
+    splash.set_position(Gtk.WindowPosition.CENTER)
+    splash.set_keep_above(True)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    box.set_border_width(16)
+    # logo if available
+    try:
+        logo_path = os.path.join(os.path.dirname(__file__), 'img', 'logo2.png')
+        if os.path.exists(logo_path):
+            pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(logo_path, 128, 128, True)
+            img = Gtk.Image.new_from_pixbuf(pix)
+            box.pack_start(img, False, False, 0)
+    except Exception:
+        pass
+    lbl = Gtk.Label(label="Loading Nova…")
+    lbl.set_margin_top(6)
+    box.pack_start(lbl, False, False, 0)
+    spinner = Gtk.Spinner()
+    spinner.start()
+    box.pack_start(spinner, False, False, 6)
+    splash.add(box)
+    return splash, spinner
+
+
 def main():
-    app = NovaReplayWindow()
-    app.connect("destroy", app.on_destroy)
-    app.show_all()
+    # show a lightweight splash so the app appears responsive while we build UI
+    splash, spinner = _create_splash_window()
+    splash.show_all()
+
+    app_holder = {'app': None}
+    start_ts = time.time()
+
+    def create_app_cb():
+        # Create the main app on the main loop (GTK main thread) so widgets are safe
+        try:
+            app_holder['app'] = NovaReplayWindow()
+            app_holder['app'].connect("destroy", app_holder['app'].on_destroy)
+        except Exception:
+            # if construction fails, ensure splash is removed and re-raise
+            try:
+                spinner.stop()
+            except Exception:
+                pass
+            try:
+                splash.destroy()
+            except Exception:
+                pass
+            raise
+        return False
+
+    # schedule creation after splash rendered
+    GLib.idle_add(create_app_cb)
+
+    def checker():
+        app = app_holder.get('app')
+        elapsed = time.time() - start_ts
+        # Enforce a minimum splash duration of 3 seconds.
+        # Do not show the main window before `elapsed >= 3.0` even if loading finished earlier.
+        if elapsed < 3.0:
+            return True
+
+        # elapsed >= 5s: create app synchronously if not yet created, then show it.
+        if app is None:
+            try:
+                app_holder['app'] = NovaReplayWindow()
+                app_holder['app'].connect("destroy", app_holder['app'].on_destroy)
+            except Exception:
+                pass
+
+        try:
+            spinner.stop()
+        except Exception:
+            pass
+        try:
+            splash.destroy()
+        except Exception:
+            pass
+        try:
+            if app_holder.get('app') is not None:
+                app_holder['app'].show_all()
+                try:
+                    app_holder['app'].present()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return False
+
+    GLib.timeout_add(200, checker)
     Gtk.main()
 
 if __name__ == '__main__':

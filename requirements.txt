@@ -1,6 +1,4 @@
 PyGObject
 pynput
-# Optional (only if you want in-app playback widget later):
-# pygobject and pygst/gstreamer bindings
 Pillow
-# Pillow provided for image compositing (rounded corners, shadow, overlays)
+
