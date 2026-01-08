@@ -1,10 +1,10 @@
 # Nova Replay
 
-Nova Replay is a lightweight, local-first screen clipper for Linux inspired by apps like Medal.tv. It's a developer-friendly prototype that focuses on capturing short clips with a polished GTK UI and simple clip management.
+Nova Replay is a lightweight, local-first screen clipper for Linux. It's a developer-friendly prototype that focuses on capturing short clips with a polished GTK UI and simple clip management.
 
 Highlights
 - Modern GTK3 UI (Python + PyGObject)
-- Uses native tools for capture: `ffmpeg` for X11/pipewire, `wf-recorder` for Wayland when available
+- Uses native tools for capture: `ffmpeg` for X11/pipewire, `wf-recorder` for Wayland when available (wayland support is very limited as of right now, but I do plan on adding full wayland support)
 - Thumbnail generation and clip management (play, delete, save-as)
 - Basic trimming via `ffmpeg` (copy-based trims)
 - Packable as an AppImage for distribution
@@ -58,8 +58,5 @@ Design notes & limitations
 
 Contributing
 - Issues and PRs welcome. For larger features (Wayland hotkey integration, persistent settings migration), open an issue to discuss the approach first.
-
-License
-- No license file is included by default. Add a `LICENSE` file to declare how you want to license this project before publishing.
 
 Enjoy — and thanks for trying Nova Replay!
