@@ -5,7 +5,16 @@ import subprocess
 import threading
 import gi
 gi.require_version('Gtk', '3.0')
+try:
+    gi.require_version('Gst', '1.0')
+except Exception:
+    pass
 from gi.repository import Gtk, GLib, Gdk, Pango, GdkPixbuf
+try:
+    from gi.repository import Gst
+    Gst.init(None)
+except Exception:
+    Gst = None
 import time
 import recorder
 import json
@@ -90,9 +99,27 @@ class HotkeyManager:
             self.hk = None
 
 class NovaReplayWindow(Gtk.Window):
+    @staticmethod
+    def get_img_file(name):
+        # Prefer images bundled inside an AppImage via $APPDIR/usr/share/nova-replay/img
+        appdir = os.environ.get('APPDIR')
+        if appdir:
+            p = os.path.join(appdir, 'usr', 'share', 'nova-replay', 'img', name)
+            if os.path.exists(p):
+                return p
+        # fall back to img/ next to this script
+        p = os.path.join(os.path.dirname(__file__), 'img', name)
+        if os.path.exists(p):
+            return p
+        # fall back to project root img/ (when running from repo root)
+        p = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')), 'img', name)
+        return p
+
     def __init__(self):
         super().__init__(title="Nova")
         self.set_default_size(1700, 950)
+        # ensure a settings placeholder exists so UI can read defaults
+        self.settings = {}
 
         # CSS styling for a modern look
         css = b"""
@@ -105,7 +132,15 @@ class NovaReplayWindow(Gtk.Window):
         .nav-button { background: transparent; color: #cfd8e3; border: none; padding: 0; margin: 2px; border-radius: 4px; min-width: 32px; min-height: 32px; }
         .nav-button GtkImage { margin: 4px; }
         .nav-button GtkLabel { color: #05021b; }
-        .side-divider { background: #000000; }
+        /* thin, unobtrusive divider between sidebar and content */
+        .side-divider {
+            /* Match the sidebar background so any seam is invisible */
+            background: #000000;
+            min-width: 1px;
+            margin: 0;
+            border-left: none;
+            box-shadow: none;
+        }
         .selected-tile { border: 2px solid #2b6cb0; }
         .main-bg { background: #000000; }
         .clip-row { background: #1f1f1f; border-radius: 6px; padding: 6px; }
@@ -120,31 +155,146 @@ class NovaReplayWindow(Gtk.Window):
         .placeholder { background: transparent; border: none; }
         /* lower tile area below thumbnails */
         .tile-lower { background: #00ff00; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding: 6px; }
+        /* Custom client-side header styled like Windows 10-ish */
+        .custom-header { background: #000000; }
+        .custom-header .primary-button { background: #0078d7; color: #ffffff; border-radius: 4px; }
+        .header-title { font-weight: 600; color: #ffffff; padding-left: 8px; }
+        /* icon-only transparent buttons */
+        .icon-button { background: transparent; border: none; padding: 0; }
+        .icon-button GtkImage { margin: 0; }
+        .icon-button:hover { background: rgba(255,255,255,0.06); border-radius: 4px; }
+        .icon-button:active { background: rgba(255,255,255,0.10); }
+        #exit-button GtkImage {
+            min-height: 20px;
+            min-width: 20px;
+        }
         """
         style_provider = Gtk.CssProvider()
         style_provider.load_from_data(css)
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), style_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-        # Header bar
-        hb = Gtk.HeaderBar()
-        hb.set_show_close_button(True)
-        hb.props.title = "Nova"
-        hb.get_style_context().add_class('headerbar')
+        # Custom client-side header bar (CSD) — spans full window width
+        top_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        try:
+            top_bar.set_size_request(-1, 36)
+        except Exception:
+            pass
+        top_bar.get_style_context().add_class('custom-header')
 
-        # Primary Record button in header (nicer look)
-        self.header_record_btn = Gtk.Button()
-        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        self.header_record_icon = Gtk.Image.new_from_icon_name('media-record', Gtk.IconSize.BUTTON)
-        self.header_record_label = Gtk.Label(label='Record')
-        btn_box.pack_start(self.header_record_icon, False, False, 0)
-        btn_box.pack_start(self.header_record_label, False, False, 0)
-        self.header_record_btn.add(btn_box)
-        self.header_record_btn.set_size_request(110, 36)
-        self.header_record_btn.get_style_context().add_class('primary-button')
-        self.header_record_btn.connect('clicked', lambda w: self._toggle_recording_gui())
-        hb.pack_end(self.header_record_btn)
+        # left-aligned area: app title or spacer
+        title_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        try:
+            title_lbl = Gtk.Label(label='Nova')
+            title_lbl.get_style_context().add_class('header-title')
+            title_lbl.set_xalign(0)
+            title_box.pack_start(title_lbl, False, False, 8)
+        except Exception:
+            pass
 
-        self.set_titlebar(hb)
+        # pack left: title
+        top_bar.pack_start(title_box, False, False, 6)
+
+        # right-aligned exit image (from img/exit.png) — compact and aligned to corner
+        exit_img_widget = Gtk.Image()
+        exit_path = os.path.join(os.path.dirname(__file__), 'img', 'exit.png')
+        # store default and hover variant paths
+        self._exit_default = exit_path
+        self._exit_hover = self.get_img_file('exit1.png')
+        self._exit_hovered = False
+        if os.path.exists(exit_path):
+            try:
+                # load a small initial pixbuf to avoid oversized image
+                pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(exit_path, -1, 20, True)
+                exit_img_widget.set_from_pixbuf(pix)
+            except Exception:
+                try:
+                    exit_img_widget.set_from_file(exit_path)
+                except Exception:
+                    exit_img_widget = Gtk.Image.new_from_icon_name('window-close', Gtk.IconSize.MENU)
+        else:
+            exit_img_widget = Gtk.Image.new_from_icon_name('window-close', Gtk.IconSize.MENU)
+
+        exit_event = Gtk.EventBox()
+        exit_event.set_name('exit-button')
+        exit_event.add(exit_img_widget)
+        exit_event.set_tooltip_text('Close')
+        try:
+            exit_event.set_size_request(28, 28)
+            exit_event.set_halign(Gtk.Align.END)
+            exit_event.set_margin_end(6)
+        except Exception:
+            pass
+
+        def _on_exit_clicked(_, __=None):
+            try:
+                # gracefully destroy the app
+                self.on_destroy()
+            except Exception:
+                try:
+                    Gtk.main_quit()
+                except Exception:
+                    pass
+
+        def _scale_exit_image(widget, allocation):
+            try:
+                h = max(12, min(28, allocation.height - 6))
+                # choose hover or default image
+                p = self._exit_hover if getattr(self, '_exit_hovered', False) and os.path.exists(self._exit_hover) else self._exit_default
+                if os.path.exists(p):
+                    try:
+                        pix2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(p, -1, h, True)
+                        GLib.idle_add(exit_img_widget.set_from_pixbuf, pix2)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        def _on_exit_enter(widget, event):
+            try:
+                self._exit_hovered = True
+                try:
+                    _scale_exit_image(top_bar, top_bar.get_allocation())
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return False
+
+        def _on_exit_leave(widget, event):
+            try:
+                self._exit_hovered = False
+                try:
+                    _scale_exit_image(top_bar, top_bar.get_allocation())
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return False
+
+        try:
+            exit_event.connect('button-press-event', _on_exit_clicked)
+            exit_event.connect('enter-notify-event', _on_exit_enter)
+            exit_event.connect('leave-notify-event', _on_exit_leave)
+        except Exception:
+            pass
+
+        try:
+            top_bar.connect('size-allocate', _scale_exit_image)
+        except Exception:
+            pass
+
+        top_bar.pack_end(exit_event, False, False, 8)
+
+
+
+
+
+        # install as client-side titlebar so content sits below it
+        try:
+            self.set_titlebar(top_bar)
+        except Exception:
+            # fallback: add to top of main content if set_titlebar unsupported
+            pass
 
         # Main layout: sidebar + content
         main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
@@ -165,22 +315,8 @@ class NovaReplayWindow(Gtk.Window):
             pass
         sidebar.get_style_context().add_class('sidebar')
         # Sidebar uses icon-only buttons (icons loaded from ./img/ or packaged AppImage path)
-        def get_img_file(name):
-            # Prefer images bundled inside an AppImage via $APPDIR/usr/share/nova-replay/img
-            appdir = os.environ.get('APPDIR')
-            if appdir:
-                p = os.path.join(appdir, 'usr', 'share', 'nova-replay', 'img', name)
-                if os.path.exists(p):
-                    return p
-            # fall back to img/ next to this script
-            p = os.path.join(os.path.dirname(__file__), 'img', name)
-            if os.path.exists(p):
-                return p
-            # fall back to project root img/ (when running from repo root)
-            p = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')), 'img', name)
-            return p
         # Optional logo at top of sidebar
-        logo_path = get_img_file('logo2.png')
+        logo_path = self.get_img_file('logo2.png')
         if os.path.exists(logo_path):
             try:
                 logo_pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(logo_path, 40, 40, True)
@@ -197,7 +333,7 @@ class NovaReplayWindow(Gtk.Window):
 
         # Clips button (icon-only, scaled)
         btn_clips = Gtk.Button()
-        clip_icon_path = get_img_file('clips.png')
+        clip_icon_path = self.get_img_file('clips.png')
         if os.path.exists(clip_icon_path):
             try:
                 pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(clip_icon_path, 28, 28, True)
@@ -223,7 +359,7 @@ class NovaReplayWindow(Gtk.Window):
 
         # Editor button (under Clips)
         btn_editor = Gtk.Button()
-        editor_icon_path = get_img_file('editor.png')
+        editor_icon_path = self.get_img_file('editor.png')
         if os.path.exists(editor_icon_path):
             try:
                 pix_e = GdkPixbuf.Pixbuf.new_from_file_at_scale(editor_icon_path, 28, 28, True)
@@ -248,7 +384,7 @@ class NovaReplayWindow(Gtk.Window):
 
         # Settings button
         btn_settings = Gtk.Button()
-        settings_icon_path = get_img_file('settings.png')
+        settings_icon_path = self.get_img_file('settings.png')
         if os.path.exists(settings_icon_path):
             try:
                 pix2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(settings_icon_path, 28, 28, True)
@@ -434,7 +570,7 @@ class NovaReplayWindow(Gtk.Window):
 
         # Background image for main content (fills behind thumbnails)
         content_overlay = Gtk.Overlay()
-        bg_path = get_img_file('bg.png')
+        bg_path = self.get_img_file('bg.png')
         self._bg_path = bg_path if os.path.exists(bg_path) else None
         self._bg_img = Gtk.Image()
         if self._bg_path:
@@ -537,10 +673,89 @@ class NovaReplayWindow(Gtk.Window):
 
             self.search_entry.connect('changed', _on_search_changed)
             search_box.pack_start(self.search_entry, True, True, 0)
+
+            # compact record button (icon) to the right of the search entry
+            try:
+                self.record_btn = Gtk.Button()
+                rec_path = self.get_img_file('record.png')
+                if os.path.exists(rec_path):
+                    rec_pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(rec_path, 20, 20, True)
+                    self.record_img = Gtk.Image.new_from_pixbuf(rec_pix)
+                else:
+                    self.record_img = Gtk.Image.new_from_icon_name('media-record', Gtk.IconSize.SMALL_TOOLBAR)
+                self.record_btn.add(self.record_img)
+                self.record_btn.set_tooltip_text('Record')
+                self.record_btn.set_size_request(40, 32)
+                try:
+                    self.record_btn.set_relief(Gtk.ReliefStyle.NONE)
+                except Exception:
+                    pass
+                try:
+                    self.record_btn.get_style_context().add_class('icon-button')
+                except Exception:
+                    pass
+                self.record_btn.connect('clicked', lambda w: self._toggle_recording_gui())
+                search_box.pack_start(self.record_btn, False, False, 6)
+            except Exception:
+                pass
+
+            # refresh button with a brief spinner animation
+            try:
+                refresh_btn = Gtk.Button()
+                ref_path = self.get_img_file('refresh.png')
+                if os.path.exists(ref_path):
+                    ref_pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(ref_path, 18, 18, True)
+                    ref_img = Gtk.Image.new_from_pixbuf(ref_pix)
+                else:
+                    ref_img = Gtk.Image.new_from_icon_name('view-refresh', Gtk.IconSize.SMALL_TOOLBAR)
+                refresh_spinner = Gtk.Spinner()
+                refresh_spinner.set_size_request(18, 18)
+                refresh_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                refresh_box.pack_start(ref_img, False, False, 0)
+                refresh_box.pack_start(refresh_spinner, False, False, 0)
+                refresh_spinner.hide()
+                refresh_btn.add(refresh_box)
+                refresh_btn.set_tooltip_text('Refresh Thumbnails')
+                refresh_btn.set_size_request(40, 32)
+                try:
+                    refresh_btn.set_relief(Gtk.ReliefStyle.NONE)
+                except Exception:
+                    pass
+                try:
+                    refresh_btn.get_style_context().add_class('icon-button')
+                except Exception:
+                    pass
+
+                def _on_refresh_clicked(widget):
+                    try:
+                        ref_img.hide()
+                        refresh_spinner.show()
+                        refresh_spinner.start()
+                        self.refresh_clips()
+                        def _stop_spin():
+                            try:
+                                refresh_spinner.stop()
+                                refresh_spinner.hide()
+                                ref_img.show()
+                            except Exception:
+                                pass
+                            return False
+                        GLib.timeout_add(700, _stop_spin)
+                    except Exception:
+                        pass
+
+                self.refresh_btn = refresh_btn
+                self.refresh_img = ref_img
+                self.refresh_spinner = refresh_spinner
+                refresh_btn.connect('clicked', _on_refresh_clicked)
+                search_box.pack_start(refresh_btn, False, False, 6)
+            except Exception:
+                pass
+
             seg_container.pack_start(search_box, False, False, 6)
         except Exception:
             pass
-        tabs = [('All Videos', 'all'), ('Full Sessions', 'full'), ('Clips', 'clips')]
+        tabs = [('All Videos', 'all'), ('Full Sessions', 'full'), ('Favorites', 'favorites'), ('Clips', 'clips')]
         self._seg_buttons = []
 
         def on_seg_clicked(btn, mode):
@@ -644,12 +859,209 @@ class NovaReplayWindow(Gtk.Window):
 
         self.content_stack.add_titled(clips_box, 'clips', 'Clips')
 
-        # Editor view (placeholder)
-        editor_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        ed_lbl = Gtk.Label(label='Editor')
-        ed_lbl.get_style_context().add_class('dim-label')
-        ed_lbl.set_xalign(0)
-        editor_box.pack_start(ed_lbl, False, False, 8)
+        # Editor workspace
+        editor_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        editor_box.get_style_context().add_class('editor-panel')
+
+        # Left: media list / project panel
+        left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        left_panel.set_size_request(220, -1)
+        left_panel.get_style_context().add_class('editor-list')
+        lbl_media = Gtk.Label(label='Media')
+        lbl_media.set_xalign(0)
+        lbl_media.get_style_context().add_class('dim-label')
+        left_panel.pack_start(lbl_media, False, False, 6)
+
+        # media grid (thumbnails) in a scrolled window
+        self.editor_flow_scrolled = Gtk.ScrolledWindow()
+        self.editor_flow = Gtk.FlowBox()
+        self.editor_flow.set_row_spacing(6)
+        self.editor_flow.set_column_spacing(6)
+        self.editor_flow.set_max_children_per_line(2)
+        self.editor_flow.set_min_children_per_line(1)
+        # allow single selection so users can pick another clip while one is playing
+        try:
+            self.editor_flow.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        except Exception:
+            # older GTK versions may not support selection; ignore
+            pass
+        self.editor_flow_scrolled.add(self.editor_flow)
+        left_panel.pack_start(self.editor_flow_scrolled, True, True, 0)
+
+        media_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        add_btn = Gtk.Button(label='Add')
+        def _on_add_media(_):
+            dlg = Gtk.FileChooserDialog(title='Add Media', parent=self, action=Gtk.FileChooserAction.OPEN)
+            dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, 'Add', Gtk.ResponseType.OK)
+            dlg.set_select_multiple(True)
+            res = dlg.run()
+            if res == Gtk.ResponseType.OK:
+                for fp in dlg.get_filenames():
+                    try:
+                        dest = os.path.join(recorder.RECORDINGS_DIR, os.path.basename(fp))
+                        os.makedirs(recorder.RECORDINGS_DIR, exist_ok=True)
+                        shutil.copy2(fp, dest)
+                    except Exception:
+                        pass
+                self.refresh_clips()
+                self._populate_editor_list()
+            dlg.destroy()
+        add_btn.connect('clicked', _on_add_media)
+        rm_btn = Gtk.Button(label='Remove')
+        def _on_remove_media(_):
+            sel = self.get_selected_clip()
+            if not sel:
+                return
+            try:
+                move_to_trash(sel)
+                self.refresh_clips()
+                self._populate_editor_list()
+            except Exception:
+                pass
+        rm_btn.connect('clicked', _on_remove_media)
+        media_btn_box.pack_start(add_btn, True, True, 0)
+        media_btn_box.pack_start(rm_btn, True, True, 0)
+        left_panel.pack_start(media_btn_box, False, False, 0)
+
+        # use a resizable paned layout: left media panel resizable, center+right fixed
+        center_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        center_panel.get_style_context().add_class('video-preview')
+        # preview container: use an Overlay so we can place a spinner above the video
+        self.preview_container = Gtk.Overlay()
+        self.preview_container.set_size_request(640, 360)
+        self.preview_container.get_style_context().add_class('preview-area')
+        # placeholder image widget for thumbnails when not playing
+        self.preview_widget = Gtk.Image()
+        self.preview_container.add(self.preview_widget)
+        # spinner overlay (hidden until needed)
+        self._spinner = Gtk.Spinner()
+        self._spinner.set_halign(Gtk.Align.CENTER)
+        self._spinner.set_valign(Gtk.Align.CENTER)
+        self._spinner.set_no_show_all(True)
+        self.preview_container.add_overlay(self._spinner)
+        center_panel.pack_start(self.preview_container, True, True, 0)
+
+        # playback controls
+        ctrl_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.play_toggle = Gtk.ToggleButton()
+        self.play_toggle.add(Gtk.Image.new_from_icon_name('media-playback-start', Gtk.IconSize.MENU))
+        self.play_toggle.set_tooltip_text('Play / Pause')
+        self.play_toggle.connect('toggled', lambda w: self.on_play(w))
+        ctrl_box.pack_start(self.play_toggle, False, False, 0)
+
+        self.time_label = Gtk.Label(label='00:00 / 00:00')
+        self.time_label.set_xalign(0)
+        ctrl_box.pack_start(self.time_label, False, False, 6)
+
+        # timeline slider for seeking
+        self.timeline = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 1, 0.01)
+        self.timeline.set_hexpand(True)
+        self.timeline.set_value_pos(Gtk.PositionType.RIGHT)
+        self.timeline.connect('value-changed', self._on_timeline_changed)
+        ctrl_box.pack_start(self.timeline, True, True, 0)
+        center_panel.pack_start(ctrl_box, False, False, 0)
+
+        # trim controls (start / end) and actions
+        trim_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.start_entry = Gtk.Entry(); self.start_entry.set_text('0')
+        self.end_entry = Gtk.Entry(); self.end_entry.set_text('10')
+        trim_box.pack_start(Gtk.Label(label='Start(s):'), False, False, 0)
+        trim_box.pack_start(self.start_entry, False, False, 0)
+        trim_box.pack_start(Gtk.Label(label='End(s):'), False, False, 0)
+        trim_box.pack_start(self.end_entry, False, False, 0)
+        trim_btn = Gtk.Button(label='Trim')
+        trim_btn.connect('clicked', self.on_trim)
+        trim_box.pack_start(trim_btn, False, False, 6)
+        save_btn = Gtk.Button(label='Save As...')
+        save_btn.connect('clicked', self.on_save_as)
+        trim_box.pack_start(save_btn, False, False, 0)
+        center_panel.pack_start(trim_box, False, False, 0)
+
+        # build center+right composite so paned can contain them as a single child
+        center_right = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        center_right.pack_start(center_panel, True, True, 6)
+
+        # Right: tools / properties
+        right_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        right_panel.set_size_request(260, -1)
+        tools_lbl = Gtk.Label(label='Tools')
+        tools_lbl.get_style_context().add_class('dim-label')
+        right_panel.pack_start(tools_lbl, False, False, 6)
+
+        # Export / render options
+        export_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        export_lbl = Gtk.Label(label='Export')
+        export_lbl.set_xalign(0)
+        export_box.pack_start(export_lbl, False, False, 0)
+        export_btn = Gtk.Button(label='Export Trimmed Clip')
+        def _on_export(_):
+            sel = self.get_selected_clip()
+            if not sel:
+                self._alert('Select a clip first')
+                return
+            try:
+                start = float(self.start_entry.get_text())
+                end = float(self.end_entry.get_text())
+            except Exception:
+                self._alert('Invalid start/end')
+                return
+            # ask for destination
+            dlg = Gtk.FileChooserDialog(title='Export Trimmed Clip', parent=self, action=Gtk.FileChooserAction.SAVE)
+            dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, 'Export', Gtk.ResponseType.OK)
+            res = dlg.run()
+            if res == Gtk.ResponseType.OK:
+                out = dlg.get_filename()
+                dlg.destroy()
+                # use ffmpeg to trim (fast copy)
+                try:
+                    cmd = ['ffmpeg', '-y', '-ss', str(start), '-to', str(end), '-i', sel, '-c', 'copy', out]
+                    threading.Thread(target=subprocess.call, args=(cmd,), daemon=True).start()
+                    self._alert(f'Exporting -> {out}')
+                except Exception as e:
+                    self._alert(f'Export failed: {e}')
+            else:
+                dlg.destroy()
+
+        export_btn.connect('clicked', _on_export)
+        export_box.pack_start(export_btn, False, False, 0)
+        right_panel.pack_start(export_box, False, False, 0)
+
+        center_right.pack_start(right_panel, False, False, 6)
+
+        # horizontal paned: left panel resizable, right side contains center+right
+        pan = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        try:
+            pan.pack1(left_panel, resize=True, shrink=False)
+            pan.pack2(center_right, resize=True, shrink=False)
+        except Exception:
+            # older GTK versions use add1/add2
+            try:
+                pan.add1(left_panel)
+                pan.add2(center_right)
+            except Exception:
+                pass
+
+        editor_box.pack_start(pan, True, True, 6)
+
+        # helper: populate list from recordings dir
+        def _on_list_row_activated(lb, row):
+            try:
+                path = getattr(row, '_path', None)
+                if path:
+                    self.select_clip(path)
+            except Exception:
+                pass
+
+        # central selection handler
+        def _sel_clip(path):
+            try:
+                self.select_clip(path)
+            except Exception:
+                pass
+
+        self._populate_editor_list = lambda: self._fill_editor_list(_on_list_row_activated)
+        self._populate_editor_list()
+
         self.content_stack.add_titled(editor_box, 'editor', 'Editor')
 
         # Settings view
@@ -678,6 +1090,140 @@ class NovaReplayWindow(Gtk.Window):
         self.hotkey_entry = Gtk.Entry()
         self.hotkey_entry.set_text("Ctrl+Alt+R")
         settings_box.pack_start(self.hotkey_entry, False, False, 0)
+
+        # Opacity slider
+        opacity_label = Gtk.Label(label="Window transparency:")
+        opacity_label.set_xalign(0)
+        settings_box.pack_start(opacity_label, False, False, 0)
+        opacity_slider = Gtk.HScale.new_with_range(0.1, 1.0, 0.1)
+        opacity_slider.set_value(1.0)
+        opacity_slider.connect("value-changed", self.on_opacity_changed)
+        settings_box.pack_start(opacity_slider, False, False, 0)
+
+        # Encoder settings (ffmpeg and generic encoder control)
+        enc_frame = Gtk.Frame(label='Encoder')
+        enc_frame.set_label_align(0.0, 0.5)
+        enc_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        enc_box.set_border_width(6)
+
+        # (Engine is derived from 'Recording backend' above)
+
+        # Video codec / container / preset / crf / bitrate / fps
+        row1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        vc_lbl = Gtk.Label(label='Video codec:')
+        vc_lbl.set_xalign(0)
+        row1.pack_start(vc_lbl, False, False, 0)
+        self.video_codec_combo = Gtk.ComboBoxText()
+        for v in ('libx264','libx265','vp9','av1'):
+            self.video_codec_combo.append_text(v)
+        try:
+            sel_v = self.settings.get('encoder', {}).get('video_codec') if getattr(self, 'settings', None) else 'libx264'
+            self.video_codec_combo.set_active(['libx264','libx265','vp9','av1'].index(sel_v) if sel_v in ('libx264','libx265','vp9','av1') else 0)
+        except Exception:
+            pass
+        row1.pack_start(self.video_codec_combo, False, False, 0)
+
+        cont_lbl = Gtk.Label(label='Container:')
+        cont_lbl.set_xalign(0)
+        row1.pack_start(cont_lbl, False, False, 8)
+        self.container_combo = Gtk.ComboBoxText()
+        for c in ('mp4','mkv','webm'):
+            self.container_combo.append_text(c)
+        try:
+            sel_c = self.settings.get('encoder', {}).get('container') if getattr(self, 'settings', None) else 'mp4'
+            self.container_combo.set_active(['mp4','mkv','webm'].index(sel_c) if sel_c in ('mp4','mkv','webm') else 0)
+        except Exception:
+            pass
+        row1.pack_start(self.container_combo, False, False, 0)
+        enc_box.pack_start(row1, False, False, 0)
+
+        row2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        preset_lbl = Gtk.Label(label='Preset:')
+        preset_lbl.set_xalign(0)
+        row2.pack_start(preset_lbl, False, False, 0)
+        self.preset_combo = Gtk.ComboBoxText()
+        for p in ('ultrafast','superfast','veryfast','faster','fast','medium','slow','slower','veryslow'):
+            self.preset_combo.append_text(p)
+        try:
+            sel_p = self.settings.get('encoder', {}).get('preset') if getattr(self, 'settings', None) else 'medium'
+            self.preset_combo.set_active(['ultrafast','superfast','veryfast','faster','fast','medium','slow','slower','veryslow'].index(sel_p) if sel_p in ('ultrafast','superfast','veryfast','faster','fast','medium','slow','slower','veryslow') else 5)
+        except Exception:
+            pass
+        row2.pack_start(self.preset_combo, False, False, 0)
+
+        crf_lbl = Gtk.Label(label='CRF:')
+        crf_lbl.set_xalign(0)
+        row2.pack_start(crf_lbl, False, False, 8)
+        adj_crf = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('crf', 23), lower=0, upper=51, step_increment=1, page_increment=5, page_size=0)
+        self.crf_spin = Gtk.SpinButton.new(adj_crf, 1, 0)
+        row2.pack_start(self.crf_spin, False, False, 0)
+        enc_box.pack_start(row2, False, False, 0)
+
+        row3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        br_lbl = Gtk.Label(label='Video kbps:')
+        br_lbl.set_xalign(0)
+        row3.pack_start(br_lbl, False, False, 0)
+        adj_br = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('bitrate_kbps', 4000), lower=0, upper=20000, step_increment=100, page_increment=500, page_size=0)
+        self.bitrate_spin = Gtk.SpinButton.new(adj_br, 100, 0)
+        row3.pack_start(self.bitrate_spin, False, False, 0)
+
+        fps_lbl = Gtk.Label(label='FPS:')
+        fps_lbl.set_xalign(0)
+        row3.pack_start(fps_lbl, False, False, 8)
+        adj_fps = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('fps', 60), lower=1, upper=240, step_increment=1, page_increment=5, page_size=0)
+        self.fps_spin = Gtk.SpinButton.new(adj_fps, 1, 0)
+        row3.pack_start(self.fps_spin, False, False, 0)
+        enc_box.pack_start(row3, False, False, 0)
+
+        # Audio options
+        row4 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        ac_lbl = Gtk.Label(label='Audio codec:')
+        ac_lbl.set_xalign(0)
+        row4.pack_start(ac_lbl, False, False, 0)
+        self.audio_codec_combo = Gtk.ComboBoxText()
+        for a in ('aac','opus','mp3'):
+            self.audio_codec_combo.append_text(a)
+        try:
+            sel_a = self.settings.get('encoder', {}).get('audio_codec') if getattr(self, 'settings', None) else 'aac'
+            self.audio_codec_combo.set_active(['aac','opus','mp3'].index(sel_a) if sel_a in ('aac','opus','mp3') else 0)
+        except Exception:
+            pass
+        row4.pack_start(self.audio_codec_combo, False, False, 0)
+
+        ab_lbl = Gtk.Label(label='Audio kbps:')
+        ab_lbl.set_xalign(0)
+        row4.pack_start(ab_lbl, False, False, 8)
+        adj_ab = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('audio_bitrate_kbps', 128), lower=16, upper=512, step_increment=16, page_increment=64, page_size=0)
+        self.audio_bitrate_spin = Gtk.SpinButton.new(adj_ab, 1, 0)
+        row4.pack_start(self.audio_bitrate_spin, False, False, 0)
+        enc_box.pack_start(row4, False, False, 0)
+
+        # Threads / hwaccel
+        row5 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        th_lbl = Gtk.Label(label='Threads:')
+        th_lbl.set_xalign(0)
+        row5.pack_start(th_lbl, False, False, 0)
+        adj_th = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('threads', 0), lower=0, upper=64, step_increment=1, page_increment=2, page_size=0)
+        self.threads_spin = Gtk.SpinButton.new(adj_th, 1, 0)
+        row5.pack_start(self.threads_spin, False, False, 0)
+
+        hw_lbl = Gtk.Label(label='HW accel:')
+        hw_lbl.set_xalign(0)
+        row5.pack_start(hw_lbl, False, False, 8)
+        self.hwaccel_combo = Gtk.ComboBoxText()
+        for h in ('none','vaapi','nvenc','qsv'):
+            self.hwaccel_combo.append_text(h)
+        try:
+            sel_h = self.settings.get('encoder', {}).get('hwaccel') if getattr(self, 'settings', None) else 'none'
+            self.hwaccel_combo.set_active(['none','vaapi','nvenc','qsv'].index(sel_h) if sel_h in ('none','vaapi','nvenc','qsv') else 0)
+        except Exception:
+            pass
+        row5.pack_start(self.hwaccel_combo, False, False, 0)
+        enc_box.pack_start(row5, False, False, 0)
+
+        enc_frame.add(enc_box)
+        settings_box.pack_start(enc_frame, False, False, 6)
+
 
         # Output directory open button
         out_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -755,8 +1301,20 @@ class NovaReplayWindow(Gtk.Window):
         # Recorder and hotkeys
         self.recorder = None
         self.selected_clip = None
+        # load persisted settings (this will set recorder.RECORDINGS_DIR)
+        try:
+            self.load_settings()
+        except Exception:
+            pass
+        # thumbnails folder lives under the current recordings dir
         self.thumbs_dir = os.path.join(recorder.RECORDINGS_DIR, 'thumbnails')
         os.makedirs(self.thumbs_dir, exist_ok=True)
+        # populate editor media list now that recordings dir is set
+        try:
+            if hasattr(self, '_populate_editor_list'):
+                self._populate_editor_list()
+        except Exception:
+            pass
         # debounce timer id for thumbnail refresh during resize
         self._thumb_resize_timer = None
         self.refresh_clips()
@@ -769,6 +1327,10 @@ class NovaReplayWindow(Gtk.Window):
             self._loaded = True
         except Exception:
             self._loaded = True
+
+    def on_opacity_changed(self, slider):
+        opacity = slider.get_value()
+        self.set_opacity(opacity)
 
     def on_destroy(self, *args):
         # cleanup recorder and hotkeys
@@ -817,6 +1379,22 @@ class NovaReplayWindow(Gtk.Window):
         # backend
         settings['preferred_backend'] = settings.get('preferred_backend', 'auto')
         settings['hotkey'] = settings.get('hotkey', 'Ctrl+Alt+R')
+        # persisted favorites mapping: filename -> bool
+        settings['favorites'] = settings.get('favorites', {})
+        # encoder settings (ffmpeg-friendly defaults)
+        settings['encoder'] = settings.get('encoder', {
+            'engine': 'ffmpeg',
+            'video_codec': 'libx264',
+            'crf': 23,
+            'bitrate_kbps': 4000,
+            'preset': 'medium',
+            'fps': 60,
+            'container': 'mp4',
+            'audio_codec': 'aac',
+            'audio_bitrate_kbps': 128,
+            'threads': 0,
+            'hwaccel': 'none',
+        })
         self.settings = settings
 
     def save_settings(self):
@@ -837,10 +1415,44 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             backend = self.settings.get('preferred_backend', 'auto')
         hotkey = self.hotkey_entry.get_text() if hasattr(self, 'hotkey_entry') else self.settings.get('hotkey', 'Ctrl+Alt+R')
+        # gather encoder ui state if present
+        enc = self.settings.get('encoder', {})
+        try:
+            # derive engine from Recording backend selection
+            try:
+                be_text = getattr(self, 'backend_combo', None).get_active_text() if getattr(self, 'backend_combo', None) else None
+                if be_text and 'wf-recorder' in be_text:
+                    engine_sel = 'wf-recorder'
+                elif be_text and 'pipewire' in be_text:
+                    engine_sel = 'pipewire'
+                else:
+                    engine_sel = 'ffmpeg'
+            except Exception:
+                engine_sel = enc.get('engine')
+
+            enc_ui = {
+                'engine': engine_sel,
+                'video_codec': getattr(self, 'video_codec_combo', None).get_active_text() if getattr(self, 'video_codec_combo', None) else enc.get('video_codec'),
+                'crf': int(getattr(self, 'crf_spin', None).get_value()) if getattr(self, 'crf_spin', None) else enc.get('crf'),
+                'bitrate_kbps': int(getattr(self, 'bitrate_spin', None).get_value()) if getattr(self, 'bitrate_spin', None) else enc.get('bitrate_kbps'),
+                'preset': getattr(self, 'preset_combo', None).get_active_text() if getattr(self, 'preset_combo', None) else enc.get('preset'),
+                'fps': int(getattr(self, 'fps_spin', None).get_value()) if getattr(self, 'fps_spin', None) else enc.get('fps'),
+                'container': getattr(self, 'container_combo', None).get_active_text() if getattr(self, 'container_combo', None) else enc.get('container'),
+                'audio_codec': getattr(self, 'audio_codec_combo', None).get_active_text() if getattr(self, 'audio_codec_combo', None) else enc.get('audio_codec'),
+                'audio_bitrate_kbps': int(getattr(self, 'audio_bitrate_spin', None).get_value()) if getattr(self, 'audio_bitrate_spin', None) else enc.get('audio_bitrate_kbps'),
+                'threads': int(getattr(self, 'threads_spin', None).get_value()) if getattr(self, 'threads_spin', None) else enc.get('threads'),
+                'hwaccel': getattr(self, 'hwaccel_combo', None).get_active_text() if getattr(self, 'hwaccel_combo', None) else enc.get('hwaccel'),
+            }
+            enc = enc_ui
+        except Exception:
+            pass
+
         cfg = {
             'recordings_dir': rec_dir,
             'preferred_backend': backend,
             'hotkey': hotkey,
+            'favorites': self.settings.get('favorites', {}),
+            'encoder': enc,
         }
         try:
             with open(self.get_config_path(), 'w') as f:
@@ -863,16 +1475,29 @@ class NovaReplayWindow(Gtk.Window):
     def update_record_button_state(self, is_recording: bool):
         try:
             if is_recording:
-                # show stop
-                self.header_record_icon.set_from_icon_name('media-playback-stop', Gtk.IconSize.BUTTON)
-                self.header_record_label.set_text('Stop')
-                self.header_record_btn.get_style_context().add_class('recording')
-            else:
-                # show record
-                self.header_record_icon.set_from_icon_name('media-record', Gtk.IconSize.BUTTON)
-                self.header_record_label.set_text('Record')
+                # show stop: swap to stop image if available
+                stop_path = self.get_img_file('stop.png')
+                if hasattr(self, 'record_img') and os.path.exists(stop_path):
+                    try:
+                        pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(stop_path, 20, 20, True)
+                        self.record_img.set_from_pixbuf(pb)
+                    except Exception:
+                        pass
                 try:
-                    self.header_record_btn.get_style_context().remove_class('recording')
+                    self.record_btn.get_style_context().add_class('recording')
+                except Exception:
+                    pass
+            else:
+                # show record: restore record image if available
+                rec_path = self.get_img_file('record.png')
+                if hasattr(self, 'record_img') and os.path.exists(rec_path):
+                    try:
+                        pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(rec_path, 20, 20, True)
+                        self.record_img.set_from_pixbuf(pb)
+                    except Exception:
+                        pass
+                try:
+                    self.record_btn.get_style_context().remove_class('recording')
                 except Exception:
                     pass
         except Exception:
@@ -980,6 +1605,13 @@ class NovaReplayWindow(Gtk.Window):
             q = (getattr(self, 'search_query', '') or '').strip().lower()
             if q:
                 files = [f for f in files if q in f.lower()]
+        except Exception:
+            pass
+        # apply favorites filter
+        try:
+            if getattr(self, 'clip_filter_mode', 'all') == 'favorites':
+                favs = self.settings.get('favorites', {}) if getattr(self, 'settings', None) else {}
+                files = [f for f in files if favs.get(f, False)]
         except Exception:
             pass
         for f in files:
@@ -1102,11 +1734,233 @@ class NovaReplayWindow(Gtk.Window):
 
             # context buttons below
             actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            # Play button (image-based, transparent)
             play = Gtk.Button()
-            play.add(Gtk.Image.new_from_icon_name('media-playback-start', Gtk.IconSize.MENU))
-            play.connect('clicked', lambda w, p=path: subprocess.Popen(['mpv', p]) if shutil.which('mpv') else subprocess.Popen(['xdg-open', p]))
+            try:
+                play_path = self.get_img_file('play.png')
+                play_hover_path = self.get_img_file('play1.png')
+                play_img = Gtk.Image()
+                if os.path.exists(play_path):
+                    pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(play_path, 20, 20, True)
+                    play_img.set_from_pixbuf(pb)
+                    play_img._normal = play_path
+                    play_img._hover = play_hover_path if os.path.exists(play_hover_path) else None
+                else:
+                    play_img = Gtk.Image.new_from_icon_name('media-playback-start', Gtk.IconSize.MENU)
+                play.add(play_img)
+                play.set_tooltip_text('Play')
+                try:
+                    play.set_relief(Gtk.ReliefStyle.NONE)
+                    play.get_style_context().add_class('icon-button')
+                    play.set_size_request(28, 28)
+                except Exception:
+                    pass
+                def _on_play_enter(w, ev, img=play_img):
+                    try:
+                        if getattr(img, '_hover', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._hover, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                def _on_play_leave(w, ev, img=play_img):
+                    try:
+                        if getattr(img, '_normal', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._normal, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                play.connect('enter-notify-event', _on_play_enter)
+                play.connect('leave-notify-event', _on_play_leave)
+                play.connect('clicked', lambda w, p=path: subprocess.Popen(['mpv', p]) if shutil.which('mpv') else subprocess.Popen(['xdg-open', p]))
+            except Exception:
+                play = Gtk.Button()
+                play.add(Gtk.Image.new_from_icon_name('media-playback-start', Gtk.IconSize.MENU))
+                play.connect('clicked', lambda w, p=path: subprocess.Popen(['mpv', p]) if shutil.which('mpv') else subprocess.Popen(['xdg-open', p]))
+
+            # Delete (trash) button (image-based, transparent)
             delb = Gtk.Button()
-            delb.add(Gtk.Image.new_from_icon_name('user-trash', Gtk.IconSize.MENU))
+            try:
+                trash_path = self.get_img_file('trash.png')
+                trash_hover = self.get_img_file('trash1.png')
+                del_img = Gtk.Image()
+                if os.path.exists(trash_path):
+                    pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(trash_path, 20, 20, True)
+                    del_img.set_from_pixbuf(pb)
+                    del_img._normal = trash_path
+                    del_img._hover = trash_hover if os.path.exists(trash_hover) else None
+                else:
+                    del_img = Gtk.Image.new_from_icon_name('user-trash', Gtk.IconSize.MENU)
+                delb.add(del_img)
+                delb.set_tooltip_text('Delete')
+                try:
+                    delb.set_relief(Gtk.ReliefStyle.NONE)
+                    delb.get_style_context().add_class('icon-button')
+                    delb.set_size_request(28, 28)
+                except Exception:
+                    pass
+                def _on_del_enter(w, ev, img=del_img):
+                    try:
+                        if getattr(img, '_hover', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._hover, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                def _on_del_leave(w, ev, img=del_img):
+                    try:
+                        if getattr(img, '_normal', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._normal, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                delb.connect('enter-notify-event', _on_del_enter)
+                delb.connect('leave-notify-event', _on_del_leave)
+            except Exception:
+                delb = Gtk.Button()
+                delb.add(Gtk.Image.new_from_icon_name('user-trash', Gtk.IconSize.MENU))
+            # Folder button (image-based, transparent) to the left of favorite
+            folderb = Gtk.Button()
+            try:
+                folder_path = self.get_img_file('folder.png')
+                folder_hover = self.get_img_file('folder1.png')
+                folder_img = Gtk.Image()
+                if os.path.exists(folder_path):
+                    pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(folder_path, 20, 20, True)
+                    folder_img.set_from_pixbuf(pb)
+                    folder_img._normal = folder_path
+                    folder_img._hover = folder_hover if os.path.exists(folder_hover) else None
+                else:
+                    folder_img = Gtk.Image.new_from_icon_name('folder', Gtk.IconSize.MENU)
+                folderb.add(folder_img)
+                folderb.set_tooltip_text('Open Folder')
+                try:
+                    folderb.set_relief(Gtk.ReliefStyle.NONE)
+                    folderb.get_style_context().add_class('icon-button')
+                    folderb.set_size_request(28, 28)
+                except Exception:
+                    pass
+                def _on_folder_enter(w, ev, img=folder_img):
+                    try:
+                        if getattr(img, '_hover', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._hover, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                def _on_folder_leave(w, ev, img=folder_img):
+                    try:
+                        if getattr(img, '_normal', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._normal, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                folderb.connect('enter-notify-event', _on_folder_enter)
+                folderb.connect('leave-notify-event', _on_folder_leave)
+                def _on_folder_clicked(w, p=path):
+                    try:
+                        # open containing folder in file manager
+                        subprocess.Popen(['xdg-open', os.path.dirname(p)])
+                    except Exception:
+                        pass
+                folderb.connect('clicked', _on_folder_clicked)
+            except Exception:
+                folderb = Gtk.Button()
+                folderb.add(Gtk.Image.new_from_icon_name('folder', Gtk.IconSize.MENU))
+
+            # Favorited button (image-based, transparent) placed beside delete
+            favb = Gtk.Button()
+            try:
+                fav_path = self.get_img_file('favorite.png')
+                fav_hover = self.get_img_file('favorite1.png')
+                fav_img = Gtk.Image()
+                if os.path.exists(fav_path):
+                    pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(fav_path, 20, 20, True)
+                    fav_img.set_from_pixbuf(pb)
+                    fav_img._normal = fav_path
+                    fav_img._hover = fav_hover if os.path.exists(fav_hover) else None
+                else:
+                    fav_img = Gtk.Image.new_from_icon_name('emblem-favorite', Gtk.IconSize.MENU)
+                favb.add(fav_img)
+                favb.set_tooltip_text('Favorite')
+                try:
+                    favb.set_relief(Gtk.ReliefStyle.NONE)
+                    favb.get_style_context().add_class('icon-button')
+                    favb.set_size_request(28, 28)
+                except Exception:
+                    pass
+                # initialize fav state from persisted settings
+                try:
+                    fav_state = False
+                    favs = self.settings.get('favorites', {}) if getattr(self, 'settings', None) else {}
+                    fav_state = favs.get(f, False)
+                    fav_img._fav = fav_state
+                    if fav_state and getattr(fav_img, '_hover', None):
+                        pb_init = GdkPixbuf.Pixbuf.new_from_file_at_scale(fav_img._hover, 20, 20, True)
+                        fav_img.set_from_pixbuf(pb_init)
+                except Exception:
+                    pass
+
+                def _on_fav_enter(w, ev, img=fav_img):
+                    try:
+                        if getattr(img, '_hover', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._hover, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                def _on_fav_leave(w, ev, img=fav_img):
+                    try:
+                        # If this item is favorited, keep the hover image visible
+                        if getattr(img, '_fav', False):
+                            if getattr(img, '_hover', None):
+                                pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._hover, 20, 20, True)
+                                img.set_from_pixbuf(pb2)
+                        else:
+                            if getattr(img, '_normal', None):
+                                pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._normal, 20, 20, True)
+                                img.set_from_pixbuf(pb2)
+                    except Exception:
+                        pass
+                    return False
+                favb.connect('enter-notify-event', _on_fav_enter)
+                favb.connect('leave-notify-event', _on_fav_leave)
+                # toggle favorited state on click
+                def _on_fav_clicked(w, img=fav_img, filename=f):
+                    try:
+                        cur = getattr(img, '_fav', False)
+                        new = not cur
+                        img._fav = new
+                        # visual feedback: when favorited, show hover image if available
+                        if new and getattr(img, '_hover', None):
+                            pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._hover, 20, 20, True)
+                            img.set_from_pixbuf(pb2)
+                        else:
+                            if getattr(img, '_normal', None):
+                                pb2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(img._normal, 20, 20, True)
+                                img.set_from_pixbuf(pb2)
+                        # persist change
+                        try:
+                            if not getattr(self, 'settings', None):
+                                self.settings = {}
+                            if 'favorites' not in self.settings:
+                                self.settings['favorites'] = {}
+                            self.settings['favorites'][filename] = new
+                            try:
+                                self.save_settings()
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                favb.connect('clicked', _on_fav_clicked)
+            except Exception:
+                favb = Gtk.Button()
+                favb.add(Gtk.Image.new_from_icon_name('emblem-favorite', Gtk.IconSize.MENU))
             def on_del(_, p=path, tp=thumb_path, widget=tile, filename=f):
                 # ask for confirmation, then move to Trash instead of permanent delete
                 try:
@@ -1157,6 +2011,15 @@ class NovaReplayWindow(Gtk.Window):
             try:
                 spacer = Gtk.Box()
                 actions.pack_start(spacer, True, True, 0)
+            except Exception:
+                pass
+            # pack folder, favorite, then delete buttons
+            try:
+                actions.pack_start(folderb, False, False, 0)
+            except Exception:
+                pass
+            try:
+                actions.pack_start(favb, False, False, 0)
             except Exception:
                 pass
             actions.pack_start(delb, False, False, 0)
@@ -1232,6 +2095,64 @@ class NovaReplayWindow(Gtk.Window):
     def get_selected_clip(self):
         return self.selected_clip
 
+    def select_clip(self, path: str):
+        """Select a clip for preview; if currently playing, switch playback to this clip."""
+        try:
+            self.selected_clip = path
+            # update preview: use thumbnail if present
+            thumb = os.path.join(self.thumbs_dir, os.path.basename(path) + '.png')
+            if os.path.exists(thumb):
+                try:
+                    self._set_image_cover(self.preview_widget, thumb, 640, 360, overfill=0)
+                except Exception:
+                    pass
+            else:
+                # clear preview widget and add placeholder image as main child
+                try:
+                    for c in list(self.preview_container.get_children()):
+                        try:
+                            if c is self._spinner:
+                                continue
+                            self.preview_container.remove(c)
+                        except Exception:
+                            pass
+                    try:
+                        self.preview_container.add(self.preview_widget)
+                    except Exception:
+                        try:
+                            self.preview_container.add(self.preview_widget)
+                        except Exception:
+                            pass
+                    self.preview_widget.show()
+                except Exception:
+                    pass
+
+            # If already playing, switch the playbin to the new clip immediately
+            try:
+                if Gst and getattr(self, 'playbin', None) and getattr(self, 'play_toggle', None) and self.play_toggle.get_active():
+                    try:
+                        self._show_spinner()
+                    except Exception:
+                        pass
+                    pb = self._create_player(path)
+                    if pb:
+                        self.playbin_uri = path
+                        GLib.idle_add(self._embed_sink_widget)
+                        try:
+                            self.playbin.set_state(Gst.State.PLAYING)
+                        except Exception:
+                            pass
+                    else:
+                        # failed to create player: hide spinner
+                        try:
+                            self._hide_spinner()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     def on_trim(self, _):
         sel = self.get_selected_clip()
         if not sel:
@@ -1275,49 +2196,494 @@ class NovaReplayWindow(Gtk.Window):
         if not sel:
             self._alert("Select a clip first")
             return
+        # Use embedded GStreamer player when available
+        if Gst:
+            try:
+                # toggle behavior: if play_toggle is active -> play, else pause
+                active = getattr(self, 'play_toggle', None) and self.play_toggle.get_active()
+                if not getattr(self, 'playbin', None) or getattr(self, 'playbin_uri', None) != sel:
+                    # create new player for selected clip
+                    pb = self._create_player(sel)
+                    if not pb:
+                        # embedded sink (gtksink) not available — inform user once
+                        if not getattr(self, '_gst_warn_shown', False):
+                            try:
+                                self._alert('Embedded GStreamer sink (gtksink) not available. Install the gstreamer GTK sink plugin (e.g. gstreamer1.0-gtk) to enable in-app preview.')
+                            except Exception:
+                                pass
+                            self._gst_warn_shown = True
+                        return
+                    self.playbin_uri = sel
+                    # embed sink widget if gtksink available or appsink fallback is in use
+                    if getattr(self, '_gst_sink', None) or getattr(self, '_appsink', None):
+                        GLib.idle_add(self._embed_sink_widget)
+                # set desired state
+                if active:
+                    try:
+                        self.playbin.set_state(Gst.State.PLAYING)
+                    except Exception:
+                        pass
+                    # start periodic update
+                    try:
+                        if not getattr(self, '_pos_update_id', None):
+                            self._pos_update_id = GLib.timeout_add(250, self._update_position)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        if getattr(self, 'playbin', None):
+                            self.playbin.set_state(Gst.State.PAUSED)
+                    except Exception:
+                        pass
+                    try:
+                        if getattr(self, '_pos_update_id', None):
+                            GLib.source_remove(self._pos_update_id)
+                            self._pos_update_id = None
+                    except Exception:
+                        pass
+                return
+            except Exception:
+                # if something unexpected happened, do not fall back to external popout
+                return
+
+        # fallback: external player
         if shutil.which("mpv"):
             subprocess.Popen(["mpv", sel])
         else:
             subprocess.Popen(["xdg-open", sel])
+
+    def _update_position(self):
+        try:
+            if not Gst or not getattr(self, 'playbin', None):
+                return False
+            ok, pos = self.playbin.query_position(Gst.Format.TIME)
+            ok2, dur = self.playbin.query_duration(Gst.Format.TIME)
+            if ok and ok2 and dur > 0:
+                cur = pos / Gst.SECOND
+                total = dur / Gst.SECOND
+                # update timeline and label in main loop
+                def _upd():
+                    try:
+                        self.time_label.set_text(f"{int(cur):02d}:{int(cur%60):02d} / {int(total):02d}:{int(total%60):02d}")
+                        try:
+                            self.timeline.handler_block_by_func(self._on_timeline_changed)
+                        except Exception:
+                            pass
+                        try:
+                            self.timeline.set_range(0, max(1, total))
+                            self.timeline.set_value(cur)
+                        except Exception:
+                            pass
+                        try:
+                            self.timeline.handler_unblock_by_func(self._on_timeline_changed)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                    return False
+                GLib.idle_add(_upd)
+            return True
+        except Exception:
+            return False
 
     def _alert(self, msg):
         dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, msg)
         dialog.run()
         dialog.destroy()
 
+    def _fill_editor_list(self, on_activate_cb):
+        try:
+            # clear existing
+            for c in list(getattr(self, 'editor_flow', []).get_children() if hasattr(self, 'editor_flow') else []):
+                try:
+                    self.editor_flow.remove(c)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            files = sorted([f for f in os.listdir(recorder.RECORDINGS_DIR) if os.path.isfile(os.path.join(recorder.RECORDINGS_DIR, f))]) if os.path.exists(recorder.RECORDINGS_DIR) else []
+            # populate flow with thumbnails
+            for f in files:
+                path = os.path.join(recorder.RECORDINGS_DIR, f)
+                tile = Gtk.EventBox()
+                box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+                # thumbnail image if available
+                thumb = os.path.join(self.thumbs_dir, f + '.png')
+                if os.path.exists(thumb):
+                    try:
+                        pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(thumb, 160, 90, True)
+                        img = Gtk.Image.new_from_pixbuf(pix)
+                    except Exception:
+                        img = Gtk.Image.new_from_icon_name('video-x-generic', Gtk.IconSize.DIALOG)
+                else:
+                    img = Gtk.Image.new_from_icon_name('video-x-generic', Gtk.IconSize.DIALOG)
+                try:
+                    img.set_size_request(160, 90)
+                except Exception:
+                    pass
+                lbl = Gtk.Label(label=os.path.basename(f))
+                lbl.set_ellipsize(Pango.EllipsizeMode.END)
+                lbl.set_max_width_chars(18)
+                lbl.get_style_context().add_class('dim-label')
+                box.pack_start(img, False, False, 0)
+                box.pack_start(lbl, False, False, 0)
+                tile.add(box)
+                # clickable: create a lightweight row-like object for callback
+                row_like = type('R', (), {})()
+                row_like._path = path
+                tile.connect('button-press-event', lambda w, e, r=row_like: on_activate_cb(None, r))
+                try:
+                    self.editor_flow.add(tile)
+                except Exception:
+                    pass
+            try:
+                # ensure flow is visible
+                self.editor_flow.show_all()
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'editor_flow'):
+                self.editor_flow.show_all()
+        except Exception:
+            pass
+
+    # --- GStreamer player integration for preview ---
+    def _create_player(self, path):
+        if not Gst:
+            return None
+        try:
+            # stop existing
+            try:
+                if hasattr(self, 'playbin') and self.playbin:
+                    self.playbin.set_state(Gst.State.NULL)
+            except Exception:
+                pass
+            pb = Gst.ElementFactory.make('playbin', 'playbin')
+            if not pb:
+                return None
+            # prefer gtksink if available for easy GTK embedding
+            sink = Gst.ElementFactory.make('gtksink', 'gtksink')
+            if sink:
+                pb.set_property('video-sink', sink)
+                self._gst_sink = sink
+                self._appsink = None
+            else:
+                # gtksink not available: create an appsink pipeline and render into a Gtk.DrawingArea
+                try:
+                    conv = Gst.ElementFactory.make('videoconvert', 'conv')
+                    appsink = Gst.ElementFactory.make('appsink', 'appsink')
+                    if not conv or not appsink:
+                        return None
+                    # request packed RGB frames from the convert element
+                    try:
+                        caps = Gst.Caps.from_string('video/x-raw,format=RGB')
+                        appsink.set_property('caps', caps)
+                    except Exception:
+                        pass
+                    appsink.set_property('emit-signals', True)
+                    appsink.set_property('max-buffers', 2)
+                    appsink.set_property('drop', True)
+
+                    sink_bin = Gst.Bin.new('appsink-bin')
+                    sink_bin.add(conv)
+                    sink_bin.add(appsink)
+                    conv.link(appsink)
+
+                    # expose a ghost pad so playbin can link to this bin
+                    pad = conv.get_static_pad('sink')
+                    ghost = Gst.GhostPad.new('sink', pad)
+                    sink_bin.add_pad(ghost)
+
+                    pb.set_property('video-sink', sink_bin)
+                    self._appsink = appsink
+                    self._gst_sink = None
+                except Exception:
+                    return None
+            # set uri
+            uri = Gst.filename_to_uri(path)
+            pb.set_property('uri', uri)
+            # store
+            self.playbin = pb
+            # attach bus
+            bus = pb.get_bus()
+            bus.add_signal_watch()
+            bus.connect('message', self._on_bus_message)
+
+            # if using appsink, hook new-sample
+            try:
+                if getattr(self, '_appsink', None):
+                    self._appsink.connect('new-sample', self._on_appsink_new_sample)
+            except Exception:
+                pass
+            return pb
+        except Exception:
+            return None
+
+    def _embed_sink_widget(self):
+        try:
+            # if using gtksink, embed its widget
+            if getattr(self, '_gst_sink', None):
+                widget = self._gst_sink.props.widget
+                # remove previous non-spinner children
+                for c in list(self.preview_container.get_children()):
+                    try:
+                        if c is self._spinner:
+                            continue
+                        self.preview_container.remove(c)
+                    except Exception:
+                        pass
+                # add sink widget as main child
+                try:
+                    self.preview_container.add(widget)
+                except Exception:
+                    try:
+                        self.preview_container.add(widget)
+                    except Exception:
+                        pass
+                widget.show()
+                self.preview_container.show()
+                return
+
+            # if using appsink fallback, create/attach a drawing area and render frames
+            if getattr(self, '_appsink', None):
+                # remove previous non-spinner children
+                for c in list(self.preview_container.get_children()):
+                    try:
+                        if c is self._spinner:
+                            continue
+                        self.preview_container.remove(c)
+                    except Exception:
+                        pass
+                # create drawing area if needed
+                if not getattr(self, '_appsink_draw', None):
+                    da = Gtk.DrawingArea()
+                    da.set_size_request(640, 360)
+                    da.connect('draw', self._on_draw_appsink)
+                    self._appsink_draw = da
+                else:
+                    da = self._appsink_draw
+                # add drawing area as main child
+                self.preview_container.add(da)
+                da.show()
+                self.preview_container.show()
+                return
+        except Exception:
+            pass
+
+    def _show_spinner(self):
+        try:
+            if getattr(self, '_spinner', None):
+                try:
+                    self._spinner.show()
+                    self._spinner.start()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _hide_spinner(self):
+        try:
+            if getattr(self, '_spinner', None):
+                try:
+                    self._spinner.stop()
+                    self._spinner.hide()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _on_appsink_new_sample(self, appsink):
+        try:
+            sample = appsink.emit('pull-sample')
+            if not sample:
+                return Gst.FlowReturn.ERROR
+            buf = sample.get_buffer()
+            caps = sample.get_caps()
+            try:
+                s = caps.get_structure(0)
+                w = s.get_value('width')
+                h = s.get_value('height')
+            except Exception:
+                w = None; h = None
+            # map buffer and copy data
+            success, mapinfo = buf.map(Gst.MapFlags.READ)
+            if not success:
+                return Gst.FlowReturn.ERROR
+            try:
+                raw = bytes(mapinfo.data)
+            except Exception:
+                raw = None
+            finally:
+                try:
+                    buf.unmap(mapinfo)
+                except Exception:
+                    pass
+            if raw and w and h:
+                # basic diagnostics
+                try:
+                    # detect likely pixel format by buffer size
+                    expected_rgb = int(w) * int(h) * 3
+                    expected_rgba = int(w) * int(h) * 4
+                    pb = None
+                    if len(raw) == expected_rgb:
+                        try:
+                            rowstride = int(w) * 3
+                            pb = GdkPixbuf.Pixbuf.new_from_data(raw, GdkPixbuf.Colorspace.RGB, False, 8, int(w), int(h), int(rowstride))
+                        except Exception:
+                            pb = None
+                    elif len(raw) == expected_rgba:
+                        try:
+                            rowstride = int(w) * 4
+                            pb = GdkPixbuf.Pixbuf.new_from_data(raw, GdkPixbuf.Colorspace.RGB, True, 8, int(w), int(h), int(rowstride))
+                        except Exception:
+                            pb = None
+                    else:
+                        # try best-effort with RGB rowstride, may still work if stride includes padding
+                        try:
+                            rowstride = int(w) * 3
+                            pb = GdkPixbuf.Pixbuf.new_from_data(raw, GdkPixbuf.Colorspace.RGB, False, 8, int(w), int(h), int(rowstride))
+                        except Exception:
+                            pb = None
+
+                    if not pb:
+                        pass
+                    else:
+                        # keep a reference to raw data to prevent GC
+                        self._appsink_frame_ref = raw
+                        self._appsink_pixbuf = pb
+                        # ensure drawing area exists and queue a redraw
+                        if getattr(self, '_appsink_draw', None):
+                            GLib.idle_add(self._appsink_draw.queue_draw)
+                        # ensure spinner hidden once first frame arrives
+                        try:
+                            GLib.idle_add(self._hide_spinner)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            return Gst.FlowReturn.OK
+        except Exception:
+            return Gst.FlowReturn.ERROR
+
+    def _appsink_fade_step(self):
+        # fade logic removed; no-op
+        return False
+
+    def _on_draw_appsink(self, widget, cr):
+        try:
+            if getattr(self, '_appsink_pixbuf', None):
+                pb = self._appsink_pixbuf
+                # scale pixbuf to widget allocation while preserving aspect
+                alloc = widget.get_allocation()
+                iw = pb.get_width(); ih = pb.get_height()
+                if iw > 0 and ih > 0:
+                    # compute scale
+                    scale = min(alloc.width / iw, alloc.height / ih)
+                    nw = int(iw * scale)
+                    nh = int(ih * scale)
+                    scaled = pb.scale_simple(nw, nh, GdkPixbuf.InterpType.BILINEAR)
+                    x = int((alloc.width - nw) / 2)
+                    y = int((alloc.height - nh) / 2)
+                    Gdk.cairo_set_source_pixbuf(cr, scaled, x, y)
+                    try:
+                        cr.paint()
+                    except Exception:
+                        pass
+                    return False
+        except Exception:
+            pass
+        # draw placeholder background if no frame
+        try:
+            cr.set_source_rgb(0.06, 0.06, 0.06)
+            alloc = widget.get_allocation()
+            cr.rectangle(0, 0, alloc.width, alloc.height)
+            cr.fill()
+        except Exception:
+            pass
+        return False
+
+    def _start_fade_out(self):
+        # fade-out removed; no-op
+        return
+
+    def _appsink_fade_out_step(self):
+        # fade-out removed; no-op
+        return False
+
+    def _on_bus_message(self, bus, msg):
+        t = msg.type
+        try:
+            if t == Gst.MessageType.EOS:
+                try:
+                    self.playbin.set_state(Gst.State.PAUSED)
+                except Exception:
+                    pass
+                GLib.idle_add(lambda: self.play_toggle.set_active(False))
+            elif t == Gst.MessageType.ERROR:
+                err, dbg = msg.parse_error()
+                GLib.idle_add(lambda: self._alert(f'GStreamer error: {err}'))
+            elif t == Gst.MessageType.DURATION_CHANGED:
+                self._update_duration()
+        except Exception:
+            pass
+
+    def _update_duration(self):
+        try:
+            if not Gst or not getattr(self, 'playbin', None):
+                return
+            success, duration = self.playbin.query_duration(Gst.Format.TIME)
+            if success and duration > 0:
+                secs = duration / Gst.SECOND
+                GLib.idle_add(self._set_time_label_duration, secs)
+        except Exception:
+            pass
+
+    def _set_time_label_duration(self, secs):
+        try:
+            cur = 0
+            if Gst and getattr(self, 'playbin', None):
+                ok, pos = self.playbin.query_position(Gst.Format.TIME)
+                if ok:
+                    cur = pos / Gst.SECOND
+            self.time_label.set_text(f"{int(cur):02d}:{int(cur%60):02d} / {int(secs):02d}:{int(secs%60):02d}")
+            # set slider range
+            try:
+                self.timeline.set_range(0, max(1, secs))
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _on_timeline_changed(self, widget):
+        try:
+            if not Gst or not getattr(self, 'playbin', None):
+                return
+            val = widget.get_value()
+            seek_ns = int(val * Gst.SECOND)
+            try:
+                self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, seek_ns)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
 
 def _create_splash_window():
     # Use a normal top-level window but remove decorations (titlebar)
     splash = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-    try:
-        splash.set_decorated(False)
-    except Exception:
-        pass
-    # keep above so it's visible while loading
-    try:
-        splash.set_keep_above(True)
-    except Exception:
-        pass
-    # Some window managers ignore set_decorated; force override-redirect once
-    # the toplevel is realized so the WM will not draw decorations.
-    def _on_splash_realize(w):
-        try:
-            gw = w.get_window()
-            if gw is not None:
-                gw.set_override_redirect(True)
-        except Exception:
-            pass
-
-    try:
-        splash.connect('realize', _on_splash_realize)
-    except Exception:
-        pass
+    splash.set_decorated(False)
+    splash.set_keep_above(True)
+    splash.set_position(Gtk.WindowPosition.CENTER)
     splash.set_default_size(480, 240)
     splash.set_resizable(False)
-    splash.set_position(Gtk.WindowPosition.CENTER)
-    splash.set_keep_above(True)
+
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     box.set_border_width(16)
+    box.get_style_context().add_class('splash-box')
+
     # logo if available
     try:
         logo_path = os.path.join(os.path.dirname(__file__), 'img', 'logo2.png')
@@ -1327,13 +2693,16 @@ def _create_splash_window():
             box.pack_start(img, False, False, 0)
     except Exception:
         pass
+
     lbl = Gtk.Label(label="Loading Nova…")
     lbl.set_margin_top(6)
+    lbl.get_style_context().add_class('splash-label')
     box.pack_start(lbl, False, False, 0)
     spinner = Gtk.Spinner()
     spinner.start()
     box.pack_start(spinner, False, False, 6)
     splash.add(box)
+
     return splash, spinner
 
 
