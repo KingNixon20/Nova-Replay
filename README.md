@@ -1,5 +1,10 @@
 # Nova Replay
-
+    _   __                
+   / | / /___ _   ______ _
+  /  |/ / __ \ | / / __ `/
+ / /|  / /_/ / |/ / /_/ / 
+/_/ |_/\____/|___/\__,_/  
+                          
 Nova Replay is a lightweight, local-first screen clipper for Linux. It's a developer-friendly prototype that focuses on capturing short clips with a polished GTK UI and simple clip management.
 
 Highlights
