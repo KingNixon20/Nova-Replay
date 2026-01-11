@@ -11,7 +11,6 @@ img/logo.jpeg
 linuxdeploy-x86_64.AppImage
 build_appimage.sh
 appimagetool-x86_64.AppImage
-todo
 /squashfs-root
 Nova Replay.code-workspace
 GEMINI.md
