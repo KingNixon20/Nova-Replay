@@ -570,6 +570,8 @@ class NovaReplayWindow(Gtk.Window):
 
         # Background image for main content (fills behind thumbnails)
         content_overlay = Gtk.Overlay()
+        # keep overlay reference for dynamic background updates
+        self.content_overlay = content_overlay
         bg_path = self.get_img_file('bg.png')
         self._bg_path = bg_path if os.path.exists(bg_path) else None
         self._bg_img = Gtk.Image()
@@ -607,6 +609,32 @@ class NovaReplayWindow(Gtk.Window):
         else:
             # no bg image; just use stack directly
             content_overlay.add(self.content_stack)
+
+        # helper to update background when user changes selection
+        def _update_bg():
+            try:
+                if not getattr(self, '_bg_pixbuf_orig', None):
+                    GLib.idle_add(self._bg_img.hide)
+                    return False
+                allocation = self.content_overlay.get_allocation()
+                if allocation.width <= 0:
+                    return False
+                ow = self._bg_pixbuf_orig.get_width()
+                oh = self._bg_pixbuf_orig.get_height()
+                aw = allocation.width
+                scale = float(aw) / float(ow) if ow else 1.0
+                new_w = max(1, int(ow * scale))
+                new_h = max(1, int(oh * scale))
+                scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
+                GLib.idle_add(self._bg_img.set_from_pixbuf, scaled)
+                try:
+                    self._bg_img.show()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return False
+        self._update_bg = _update_bg
 
         # Clips view (grid of thumbnails)
         clips_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -1100,6 +1128,63 @@ class NovaReplayWindow(Gtk.Window):
         opacity_slider.connect("value-changed", self.on_opacity_changed)
         settings_box.pack_start(opacity_slider, False, False, 0)
 
+        # Background selector
+        bg_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        bg_lbl = Gtk.Label(label='Background:')
+        bg_lbl.set_xalign(0)
+        bg_row.pack_start(bg_lbl, False, False, 0)
+        self.bg_combo = Gtk.ComboBoxText()
+        for b in ('bg.png','bg1.png','bg3.png','bg4.png'):
+            self.bg_combo.append_text(b)
+        try:
+            sel_bg = self.settings.get('bg_choice') if getattr(self, 'settings', None) else 'bg.png'
+            if sel_bg in ('bg.png','bg1.png','bg3.png','bg4.png'):
+                self.bg_combo.set_active(('bg.png','bg1.png','bg3.png','bg4.png').index(sel_bg))
+            else:
+                self.bg_combo.set_active(0)
+        except Exception:
+            pass
+        def _on_bg_changed(combo):
+            try:
+                txt = combo.get_active_text()
+                if not txt:
+                    return
+                # persist choice
+                try:
+                    if not getattr(self, 'settings', None):
+                        self.settings = {}
+                    self.settings['bg_choice'] = txt
+                    try:
+                        self.save_settings()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                p = self.get_img_file(txt)
+                if p and os.path.exists(p):
+                    try:
+                        self._bg_path = p
+                        self._bg_pixbuf_orig = GdkPixbuf.Pixbuf.new_from_file(p)
+                        # update now
+                        try:
+                            GLib.idle_add(self._update_bg)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self._bg_pixbuf_orig = None
+                        GLib.idle_add(self._bg_img.hide)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        self.bg_combo.connect('changed', _on_bg_changed)
+        bg_row.pack_start(self.bg_combo, False, False, 0)
+        settings_box.pack_start(bg_row, False, False, 6)
+
         # Encoder settings (ffmpeg and generic encoder control)
         enc_frame = Gtk.Frame(label='Encoder')
         enc_frame.set_label_align(0.0, 0.5)
@@ -1306,6 +1391,26 @@ class NovaReplayWindow(Gtk.Window):
             self.load_settings()
         except Exception:
             pass
+        # apply background choice from loaded settings (if any)
+        try:
+            sel = self.settings.get('bg_choice', None) if getattr(self, 'settings', None) else None
+            if sel and getattr(self, 'bg_combo', None):
+                try:
+                    if sel in ('bg.png','bg1.png','bg3.png','bg4.png'):
+                        self.bg_combo.set_active(('bg.png','bg1.png','bg3.png','bg4.png').index(sel))
+                except Exception:
+                    pass
+            if sel:
+                p = self.get_img_file(sel)
+                if p and os.path.exists(p):
+                    try:
+                        self._bg_path = p
+                        self._bg_pixbuf_orig = GdkPixbuf.Pixbuf.new_from_file(p)
+                        GLib.idle_add(self._update_bg)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         # thumbnails folder lives under the current recordings dir
         self.thumbs_dir = os.path.join(recorder.RECORDINGS_DIR, 'thumbnails')
         os.makedirs(self.thumbs_dir, exist_ok=True)
@@ -1453,6 +1558,7 @@ class NovaReplayWindow(Gtk.Window):
             'hotkey': hotkey,
             'favorites': self.settings.get('favorites', {}),
             'encoder': enc,
+            'bg_choice': self.settings.get('bg_choice', 'bg.png'),
         }
         try:
             with open(self.get_config_path(), 'w') as f:

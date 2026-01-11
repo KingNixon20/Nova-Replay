@@ -173,11 +173,17 @@ def prepare_appdir():
             f.writelines(out_lines)
         print('Sanitized desktop file at', desktop_path)
 
-def run_cmd(cmd, env=None):
-    print('RUN:', ' '.join(cmd))
-    r = subprocess.run(cmd, env=env)
+def run_cmd(cmd, env=None, cwd=None):
+    print('RUN:', ' '.join(cmd), f'(cwd={cwd})' if cwd else '')
+    r = subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True)
+    if r.stdout:
+        print('--- stdout ---')
+        print(r.stdout)
+    if r.stderr:
+        print('--- stderr ---')
+        print(r.stderr)
     if r.returncode != 0:
-        raise SystemExit(f'Command failed: {cmd}')
+        raise SystemExit(f'Command failed: {cmd}\nreturncode={r.returncode}\nstdout={r.stdout}\nstderr={r.stderr}')
 
 def build():
     prepare_appdir()
@@ -195,7 +201,28 @@ def build():
     env = os.environ.copy()
     env['ARCH'] = 'x86_64'
     cmd2 = [APPIMAGETOOL, APPDIR]
-    run_cmd(cmd2, env=env)
+    try:
+        run_cmd(cmd2, env=env)
+    except SystemExit as e:
+        print('appimagetool failed:', e)
+        print('Attempting fallback: extract appimagetool and run extracted AppRun (no FUSE required)')
+        # Attempt to extract the AppImage and run the extracted AppRun binary
+        try:
+            run_cmd([APPIMAGETOOL, '--appimage-extract'])
+            extracted_apprun = os.path.join(ROOT, 'squashfs-root', 'AppRun')
+            if not os.path.exists(extracted_apprun):
+                raise SystemExit('Extraction did not produce squashfs-root/AppRun')
+            try:
+                os.chmod(extracted_apprun, 0o755)
+            except Exception:
+                pass
+            # Run the extracted AppRun from inside the extracted dir (some AppRun expect relative layout)
+            extracted_dir = os.path.join(ROOT, 'squashfs-root')
+            run_cmd([extracted_apprun, APPDIR], env=env, cwd=extracted_dir)
+            print('AppImage created using extracted appimagetool/AppRun fallback.')
+        except SystemExit as e2:
+            print('Fallback extraction/run also failed:', e2)
+            raise
 
 def main():
     try:
