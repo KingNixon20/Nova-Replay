@@ -22,7 +22,7 @@ from thumbnail_renderer import render_decorated_thumbnail
 import shutil
 
 from datetime import datetime
-
+#newline
 
 def move_to_trash(path: str) -> str:
     """Move a file to the FreeDesktop Trash location and write a .trashinfo file.
