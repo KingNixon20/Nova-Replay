@@ -117,7 +117,14 @@ class NovaReplayWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Nova")
-        self.set_default_size(1700, 950)
+        # Smaller default size so the window opens compactly
+        self.set_default_size(1200, 700)
+        # Allow arbitrary resizing; set a very small minimum so user can resize to any size
+        self.set_resizable(True)
+        try:
+            self.set_size_request(1, 1)
+        except Exception:
+            pass
         # ensure a settings placeholder exists so UI can read defaults
         self.settings = {}
 
