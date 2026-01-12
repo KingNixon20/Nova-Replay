@@ -105,15 +105,31 @@ class Recorder:
             print("Starting recorder with:", " ".join(cmd))
             logp = self._open_log('ffmpeg')
             self._log_handle = logp
-            self.proc = subprocess.Popen(cmd, stdout=logp, stderr=logp)
+            self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=logp, stderr=logp)
             return
 
         if backend == 'pipewire':
+            # Ensure system ffmpeg supports the 'pipewire' protocol before starting
+            if not self._ffmpeg_supports_pipewire():
+                msg = ('ffmpeg on this system does not support the PipeWire input protocol; falling back to X11 capture.')
+                print(msg)
+                if callable(getattr(self, 'on_error', None)):
+                    try:
+                        self.on_error(msg)
+                    except Exception:
+                        pass
+                # fall back to ffmpeg-x11
+                cmd = self._ffmpeg_x11_cmd()
+                print("Starting recorder with:", " ".join(cmd))
+                logp = self._open_log('ffmpeg')
+                self._log_handle = logp
+                self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=logp, stderr=logp)
+                return
             cmd = self._ffmpeg_pipewire_cmd()
             print("Starting recorder with:", " ".join(cmd))
             logp = self._open_log('ffmpeg')
             self._log_handle = logp
-            self.proc = subprocess.Popen(cmd, stdout=logp, stderr=logp)
+            self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=logp, stderr=logp)
             return
 
         if backend == 'wf-recorder':
@@ -175,7 +191,7 @@ class Recorder:
                         print('Starting recorder with:', ' '.join(cmd2))
                         logp2 = self._open_log('ffmpeg')
                         self._log_handle = logp2
-                        p2 = subprocess.Popen(cmd2, stdout=logp2, stderr=logp2)
+                        p2 = subprocess.Popen(cmd2, stdin=subprocess.PIPE, stdout=logp2, stderr=logp2)
                         try:
                             time.sleep(0.5)
                         except Exception:
@@ -204,46 +220,49 @@ class Recorder:
         print("Starting recorder with:", " ".join(cmd))
         logp = self._open_log('ffmpeg')
         self._log_handle = logp
-        self.proc = subprocess.Popen(cmd, stdout=logp, stderr=logp)
+        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=logp, stderr=logp)
 
     def stop(self):
         if not self.proc:
             return
         proc = self.proc
-        # If wf-recorder was used (we created a tempfile), prefer a graceful shutdown
-        if self.tempfile:
+        # attempt graceful shutdown for all backends: send SIGINT (like Ctrl+C)
+        try:
+            import signal
+            # prefer sending 'q' to ffmpeg stdin for clean stop when available
             try:
-                import signal
-                try:
-                    proc.send_signal(signal.SIGINT)
-                except Exception:
-                    pass
-                try:
-                    proc.wait(timeout=10)
-                except subprocess.TimeoutExpired:
+                if getattr(proc, 'stdin', None):
                     try:
-                        proc.terminate()
-                        proc.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        try:
-                            proc.kill()
-                        except Exception:
-                            pass
+                        proc.stdin.write(b'q')
+                        proc.stdin.flush()
+                    except (BrokenPipeError, OSError):
+                        # process stdin already closed or broken; ignore
+                        pass
                     except Exception:
-                        try:
-                            proc.kill()
-                        except Exception:
-                            pass
+                        pass
             except Exception:
+                pass
+            try:
+                proc.send_signal(signal.SIGINT)
+            except Exception:
+                pass
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
                 try:
                     proc.terminate()
                     proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
                 except Exception:
                     try:
                         proc.kill()
                     except Exception:
                         pass
-        else:
+        except Exception:
             try:
                 proc.terminate()
                 proc.wait(timeout=5)
@@ -252,6 +271,19 @@ class Recorder:
                     proc.kill()
                 except Exception:
                     pass
+
+        # close and clear log handle if present (ignore broken-pipe/IO errors)
+        try:
+            if self._log_handle and hasattr(self._log_handle, 'close'):
+                try:
+                    self._log_handle.close()
+                except (BrokenPipeError, OSError):
+                    pass
+                except Exception:
+                    pass
+        finally:
+            self._log_handle = None
+
         self.proc = None
         # If wf-recorder wrote to a tempfile, finalize it (wait for file to be closed, then transcode/move)
         if self.tempfile and os.path.exists(self.tempfile):

@@ -1514,7 +1514,6 @@ class NovaReplayWindow(Gtk.Window):
         settings_box.pack_start(backend_label, False, False, 0)
         self.backend_combo = Gtk.ComboBoxText()
         self.backend_combo.append_text("ffmpeg (x11grab)")
-        self.backend_combo.append_text("wf-recorder (wayland)")
         self.backend_combo.append_text("pipewire (ffmpeg)")
         self.backend_combo.set_active(0)
         settings_box.pack_start(self.backend_combo, False, False, 0)
@@ -1821,6 +1820,19 @@ class NovaReplayWindow(Gtk.Window):
                         GLib.idle_add(self._update_bg)
                     except Exception:
                         pass
+            # apply preferred recording backend selection to UI
+            try:
+                pref = self.settings.get('preferred_backend', 'auto') if getattr(self, 'settings', None) else 'auto'
+                if getattr(self, 'backend_combo', None):
+                    if pref == 'ffmpeg-x11':
+                        self.backend_combo.set_active(0)
+                    elif pref == 'pipewire':
+                        # after removing wf-recorder option, pipewire is at index 1
+                        self.backend_combo.set_active(1)
+                    else:
+                        self.backend_combo.set_active(0)
+            except Exception:
+                pass
         except Exception:
             pass
         # thumbnails folder lives under the current recordings dir
@@ -1925,8 +1937,6 @@ class NovaReplayWindow(Gtk.Window):
             txt = self.backend_combo.get_active_text()
             if txt and 'ffmpeg' in txt and 'x11' in txt:
                 backend = 'ffmpeg-x11'
-            elif txt and 'wf-recorder' in txt:
-                backend = 'wf-recorder'
             elif txt and 'pipewire' in txt:
                 backend = 'pipewire'
         except Exception:
@@ -1938,9 +1948,7 @@ class NovaReplayWindow(Gtk.Window):
             # derive engine from Recording backend selection
             try:
                 be_text = getattr(self, 'backend_combo', None).get_active_text() if getattr(self, 'backend_combo', None) else None
-                if be_text and 'wf-recorder' in be_text:
-                    engine_sel = 'wf-recorder'
-                elif be_text and 'pipewire' in be_text:
+                if be_text and 'pipewire' in be_text:
                     engine_sel = 'pipewire'
                 else:
                     engine_sel = 'ffmpeg'
@@ -2053,16 +2061,12 @@ class NovaReplayWindow(Gtk.Window):
             txt = self.backend_combo.get_active_text()
             if txt and 'ffmpeg' in txt and 'x11' in txt:
                 pref = 'ffmpeg-x11'
-            elif txt and 'wf-recorder' in txt:
-                pref = 'wf-recorder'
             elif txt and 'pipewire' in txt:
                 pref = 'pipewire'
         except Exception:
             pref = 'auto'
         # warn if chosen backend binary likely missing
         try:
-            if pref == 'wf-recorder' and not shutil.which('wf-recorder'):
-                self._alert('wf-recorder not found; falling back to available backend')
             if pref in ('ffmpeg-x11', 'pipewire') and not shutil.which('ffmpeg'):
                 self._alert('ffmpeg not found; recording will likely fail')
         except Exception:
@@ -2087,7 +2091,11 @@ class NovaReplayWindow(Gtk.Window):
 
     def on_stop(self, _):
         if self.recorder:
-            self.recorder.stop()
+            try:
+                self.recorder.stop()
+            except (BrokenPipeError, OSError, Exception):
+                # swallow any pipe/IO errors during recorder shutdown
+                pass
             self.start_btn.set_sensitive(True)
             self.stop_btn.set_sensitive(False)
             try:
