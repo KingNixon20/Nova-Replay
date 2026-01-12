@@ -783,16 +783,20 @@ class NovaReplayWindow(Gtk.Window):
         self.content_overlay = content_overlay
         bg_path = self.get_img_file('bg.png')
         self._bg_path = bg_path if os.path.exists(bg_path) else None
-        self._bg_img = Gtk.Image()
+        # Background implemented as a DrawingArea so it never participates in size negotiation
+        # (purely decorative and drawn with Cairo)
         try:
-            # ensure background image can't force the window minimum size
-            self._bg_img.set_size_request(1, 1)
+            self._bg_pixbuf_orig = None
         except Exception:
-            pass
-        # Do not let the image expand and determine layout
+            self._bg_pixbuf_orig = None
+
+        self._bg_draw = Gtk.DrawingArea()
         try:
-            self._bg_img.set_hexpand(False)
-            self._bg_img.set_vexpand(False)
+            # ensure it doesn't affect preferred sizes
+            self._bg_draw.set_size_request(1, 1)
+            self._bg_draw.set_hexpand(False)
+            self._bg_draw.set_vexpand(False)
+            self._bg_draw.set_can_focus(False)
         except Exception:
             pass
 
@@ -803,49 +807,28 @@ class NovaReplayWindow(Gtk.Window):
             except Exception:
                 self._bg_pixbuf_orig = None
 
-            # put the background image in a Fixed so we can position it with negative offsets
-            # and allow it to overflow/clip when the window is smaller (purely decorative)
+            # add drawing area into overlay as a purely decorative background
             try:
-                self._bg_fixed = Gtk.Fixed()
-                try:
-                    self._bg_fixed.set_size_request(1, 1)
-                except Exception:
-                    pass
-                # add image into fixed at 0,0 initially
-                try:
-                    self._bg_fixed.put(self._bg_img, 0, 0)
-                except Exception:
-                    # older bindings may use add; fallback
-                    try:
-                        self._bg_fixed.add(self._bg_img)
-                    except Exception:
-                        pass
-            except Exception:
-                self._bg_fixed = None
-
-            # add fixed as the background child and stack content on top
-            try:
-                if self._bg_fixed:
-                    content_overlay.add(self._bg_fixed)
-                else:
-                    content_overlay.add(self._bg_img)
+                content_overlay.add(self._bg_draw)
                 content_overlay.add_overlay(self.content_stack)
             except Exception:
                 try:
-                    content_overlay.add(self._bg_img)
+                    content_overlay.add(self._bg_draw)
                     content_overlay.add_overlay(self.content_stack)
                 except Exception:
                     pass
 
-            def on_overlay_alloc(w, allocation):
+            # draw handler: scale using COVER logic and center; allow cropping
+            def _on_bg_draw(widget, cr):
                 try:
-                    if not self._bg_pixbuf_orig or allocation.width <= 0 or allocation.height <= 0:
+                    if not getattr(self, '_bg_pixbuf_orig', None):
+                        return False
+                    alloc = widget.get_allocation()
+                    aw, ah = alloc.width, alloc.height
+                    if aw <= 0 or ah <= 0:
                         return False
                     ow = self._bg_pixbuf_orig.get_width()
                     oh = self._bg_pixbuf_orig.get_height()
-                    aw = allocation.width
-                    ah = allocation.height
-                    # COVER scaling: scale to cover the allocation and allow cropping
                     try:
                         scale = max(float(aw) / float(ow), float(ah) / float(oh)) if ow and oh else 1.0
                     except Exception:
@@ -853,33 +836,34 @@ class NovaReplayWindow(Gtk.Window):
                     new_w = max(1, int(ow * scale))
                     new_h = max(1, int(oh * scale))
                     scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
-                    # update pixbuf on the main loop
-                    GLib.idle_add(self._bg_img.set_from_pixbuf, scaled)
-                    # center the image inside the allocation; allow negative offsets so it can be clipped
+                    # center the image; allow negative offsets so it clips when window is smaller
+                    x = int((aw - new_w) / 2)
+                    y = int((ah - new_h) / 2)
                     try:
-                        x = int((aw - new_w) / 2)
-                        y = int((ah - new_h) / 2)
-                        if getattr(self, '_bg_fixed', None):
-                            try:
-                                self._bg_fixed.move(self._bg_img, x, y)
-                            except Exception:
-                                try:
-                                    self._bg_fixed.put(self._bg_img, x, y)
-                                except Exception:
-                                    pass
-                        else:
-                            # fallback: position via alignment when fixed not available
-                            try:
-                                self._bg_img.set_halign(Gtk.Align.CENTER)
-                                self._bg_img.set_valign(Gtk.Align.CENTER)
-                            except Exception:
-                                pass
+                        Gdk.cairo_set_source_pixbuf(cr, scaled, x, y)
+                        cr.paint()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                return False
+
+            try:
+                self._bg_draw.connect('draw', _on_bg_draw)
+            except Exception:
+                pass
+
+            def _on_overlay_alloc(w, allocation):
+                try:
+                    # redraw background when overlay size changes
+                    try:
+                        self._bg_draw.queue_draw()
                     except Exception:
                         pass
                 except Exception:
                     pass
 
-            content_overlay.connect('size-allocate', on_overlay_alloc)
+            content_overlay.connect('size-allocate', _on_overlay_alloc)
         else:
             # no bg image; just use stack directly
             content_overlay.add(self.content_stack)
@@ -888,46 +872,17 @@ class NovaReplayWindow(Gtk.Window):
         def _update_bg():
             try:
                 if not getattr(self, '_bg_pixbuf_orig', None):
-                    GLib.idle_add(self._bg_img.hide)
+                    # nothing to draw
+                    try:
+                        if getattr(self, '_bg_draw', None):
+                            GLib.idle_add(self._bg_draw.queue_draw)
+                    except Exception:
+                        pass
                     return False
-                allocation = self.content_overlay.get_allocation()
-                if allocation.width <= 0 or allocation.height <= 0:
-                    return False
-                ow = self._bg_pixbuf_orig.get_width()
-                oh = self._bg_pixbuf_orig.get_height()
-                aw = allocation.width
-                ah = allocation.height
-                # COVER scaling: ensure image covers the area and allow cropping
+                # schedule a redraw of the background drawing area
                 try:
-                    scale = max(float(aw) / float(ow), float(ah) / float(oh)) if ow and oh else 1.0
-                except Exception:
-                    scale = 1.0
-                new_w = max(1, int(ow * scale))
-                new_h = max(1, int(oh * scale))
-                scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
-                GLib.idle_add(self._bg_img.set_from_pixbuf, scaled)
-                # center the image inside the allocation; allow parts to be clipped
-                try:
-                    x = int((aw - new_w) / 2)
-                    y = int((ah - new_h) / 2)
-                    if getattr(self, '_bg_fixed', None):
-                        try:
-                            self._bg_fixed.move(self._bg_img, x, y)
-                        except Exception:
-                            try:
-                                self._bg_fixed.put(self._bg_img, x, y)
-                            except Exception:
-                                pass
-                    else:
-                        try:
-                            self._bg_img.set_halign(Gtk.Align.CENTER)
-                            self._bg_img.set_valign(Gtk.Align.CENTER)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-                try:
-                    self._bg_img.show()
+                    if getattr(self, '_bg_draw', None):
+                        GLib.idle_add(self._bg_draw.queue_draw)
                 except Exception:
                     pass
             except Exception:
@@ -1520,7 +1475,11 @@ class NovaReplayWindow(Gtk.Window):
                 else:
                     try:
                         self._bg_pixbuf_orig = None
-                        GLib.idle_add(self._bg_img.hide)
+                        try:
+                            if getattr(self, '_bg_draw', None):
+                                GLib.idle_add(self._bg_draw.queue_draw)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
             except Exception:
