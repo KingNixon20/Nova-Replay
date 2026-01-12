@@ -22,7 +22,7 @@ import json
 from thumbnail_renderer import render_decorated_thumbnail
 import shutil
 
-from datetime import datetime
+from datetime import datetime, timezone
 #newline
 
 def move_to_trash(path: str) -> str:
@@ -50,10 +50,10 @@ def move_to_trash(path: str) -> str:
 
     info_path = os.path.join(info_dir, dest + '.trashinfo')
     try:
-        with open(info_path, 'w') as f:
-            f.write('[Trash Info]\n')
-            f.write(f'Path={os.path.abspath(path)}\n')
-            f.write(f'DeletionDate={datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S") }\n')
+            with open(info_path, 'w') as f:
+                f.write('[Trash Info]\n')
+                f.write(f'Path={os.path.abspath(path)}\n')
+                f.write(f'DeletionDate={datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") }\n')
     except Exception:
         pass
 
@@ -162,7 +162,7 @@ class NovaReplayWindow(Gtk.Window):
         .segmented-container { background: transparent; border-bottom: 1px solid #2e3134; padding-bottom: 4px; margin-bottom: 4px; }
         .placeholder { background: transparent; border: none; }
         /* lower tile area below thumbnails */
-        .tile-lower { background: #1F1F1F; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding: 6px; }
+        .tile-lower { background: #141414; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding: 6px; }
         /* Custom client-side header styled like Windows 10-ish */
         .custom-header { background: #000000; }
         .custom-header .primary-button { background: #0078d7; color: #ffffff; border-radius: 4px; }
@@ -1852,7 +1852,8 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         # let Recorder choose a timestamped filename to avoid overwriting
-        self.recorder = recorder.Recorder(mode=mode, preferred_backend=pref)
+        enc_settings = self.settings.get('encoder', {}) if getattr(self, 'settings', None) else {}
+        self.recorder = recorder.Recorder(mode=mode, preferred_backend=pref, settings=enc_settings)
         self.recorder.on_stop = self.on_record_stop
         # report recorder startup errors into the UI
         try:
@@ -1984,7 +1985,7 @@ class NovaReplayWindow(Gtk.Window):
                     def gen(p=path, tp=thumb_path, nb=decor_base, widget=img, tw=target_w, th=target_h, ih=img_h):
                         try:
                             # extract a frame sized to target
-                            subprocess.call(['ffmpeg', '-y', '-ss', '00:00:01', '-i', p, '-vframes', '1', '-q:v', '2', '-s', f'{tw}x{ih}', tp])
+                            subprocess.run(['ffmpeg', '-y', '-ss', '00:00:01', '-i', p, '-vframes', '1', '-q:v', '2', '-s', f'{tw}x{ih}', tp], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                             # render decorated normal + hover
                             try:
                                 render_decorated_thumbnail(tp, nb, size=(tw, ih), radius=12)
@@ -2273,8 +2274,7 @@ class NovaReplayWindow(Gtk.Window):
             def on_del(_, p=path, tp=thumb_path, widget=tile, filename=f):
                 # ask for confirmation, then move to Trash instead of permanent delete
                 try:
-                    dlg = Gtk.MessageDialog(self, 0, Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL,
-                                            f"Move '{os.path.basename(p)}' to Trash?")
+                    dlg = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.OK_CANCEL, text=f"Move '{os.path.basename(p)}' to Trash?")
                     res = dlg.run()
                     dlg.destroy()
                     if res != Gtk.ResponseType.OK:
@@ -2596,7 +2596,7 @@ class NovaReplayWindow(Gtk.Window):
             return False
 
     def _alert(self, msg):
-        dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, msg)
+        dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK, text=msg)
         dialog.run()
         dialog.destroy()
 
