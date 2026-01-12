@@ -14,3 +14,5 @@ appimagetool-x86_64.AppImage
 /squashfs-root
 Nova Replay.code-workspace
 GEMINI.md
+/logs
+.log
