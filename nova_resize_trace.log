@@ -1,0 +1,638 @@
+/home/kingnixon/Documents/LinuxProjects/Nova Replay/main.py:1321: DeprecationWarning: Gtk.HScale.new_with_range is deprecated
+  opacity_slider = Gtk.HScale.new_with_range(0.1, 1.0, 0.1)
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-11-28 00-50-10.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-11-28T06:50:10.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 01:28:16.10, start: 0.000000, bitrate: 2848 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1280x720 [SAR 1:1 DAR 16:9], 2643 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-11-28T06:50:10.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 192 kb/s (default)
+    Metadata:
+      creation_time   : 2025-11-28T06:50:10.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-11-30 19-54-08.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-01T01:54:08.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 02:01:39.25, start: 0.000000, bitrate: 6173 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1280x720 [SAR 1:1 DAR 16:9], 6000 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-01T01:54:08.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 160 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-01T01:54:08.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-12 17-54-46.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-12T23:54:46.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 00:18:08.90, start: 0.000000, bitrate: 6168 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1280x720 [SAR 1:1 DAR 16:9], 5999 kb/s, 30 fps, 30 tbr, 30 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-12T23:54:46.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 160 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-12T23:54:46.000000Z
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-13 17-01-31.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-13T23:01:31.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 00:01:03.55, start: 0.000000, bitrate: 6164 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 5990 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-13T23:01:31.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 160 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-13T23:01:31.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-12 18-19-03.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-13T00:19:03.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 01:29:41.53, start: 0.000000, bitrate: 6168 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1280x720 [SAR 1:1 DAR 16:9], 5999 kb/s, 30 fps, 30 tbr, 30 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-13T00:19:03.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 160 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-13T00:19:03.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-13 17-02-39.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-13T23:02:39.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 00:27:08.08, start: 0.000000, bitrate: 6173 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 6000 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-13T23:02:39.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 160 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-13T23:02:39.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-15 19-14-22.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-16T01:14:22.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 00:26:48.15, start: 0.000000, bitrate: 6174 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 6000 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-16T01:14:22.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 160 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-16T01:14:22.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-16 16-49-08.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-16T22:49:08.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 00:03:27.55, start: 0.000000, bitrate: 6171 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 5997 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-16T22:49:08.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 160 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-16T22:49:08.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+[swscaler @ 0x7fe65c031900] deprecated pixel format used, make sure you did set range correctly
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-13 17-01-31.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-13T23:01:31.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+[image2 @ 0x560a857cca00] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-13 17-01-31.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x560a857cca00] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x560a85786c80] video:20KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.018x elapsed=0:00:00.92    
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-11-28 00-50-10.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-11-28T06:50:10.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+[swscaler @ 0x7f6514031900] deprecated pixel format used, make sure you did set range correctly
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-11-30 19-54-08.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-01T01:54:08.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-12 18-19-03.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 30 fps, 30 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-13T00:19:03.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+[image2 @ 0x5597d7a20680] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-11-28 00-50-10.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x5597d7a20680] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x5597d6b47140] video:71KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.9 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.0146x elapsed=0:00:01.14    
+[image2 @ 0x5627e7539200] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-12 18-19-03.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x5627e7539200] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-12 17-54-46.mp4.png':
+[image2 @ 0x557f76493f80] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-11-30 19-54-08.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x557f76493f80] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 30 fps, 30 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-12T23:54:46.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-16_17-00-24.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-16T23:00:24.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 00:24:05.38, start: 0.000000, bitrate: 44226 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 43830 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-16T23:00:24.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 192 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-16T23:00:24.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+  Stream #0:2[0x3](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 192 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-16T23:00:24.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+[image2 @ 0x56271d2c40c0] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-12 17-54-46.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x56271d2c40c0] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+Press [q] to stop, [?] for help
+[out#0/image2 @ 0x56271d9f8880] video:51KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.8 q=-0.0 Lsize=N/A time=00:00:00.03 bitrate=N/A speed=0.026x elapsed=0:00:01.28    
+[out#0/image2 @ 0x557f764e25c0] video:69KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.7 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.0124x elapsed=0:00:01.33    
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+[out#0/image2 @ 0x5627e802f540] video:31KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.9 q=-0.0 Lsize=N/A time=00:00:00.03 bitrate=N/A speed=0.0284x elapsed=0:00:01.17    
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/2025-12-24_18-12-46.mp4':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    creation_time   : 2025-12-25T00:12:46.000000Z
+    encoder         : OBS Studio (32.0.2)
+  Duration: 00:00:04.18, start: 0.000000, bitrate: 38827 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 38421 kb/s, 60 fps, 60 tbr, 60 tbn (default)
+    Metadata:
+      creation_time   : 2025-12-25T00:12:46.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+      encoder         : obs_x264
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 192 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-25T00:12:46.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+  Stream #0:2[0x3](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 192 kb/s (default)
+    Metadata:
+      creation_time   : 2025-12-25T00:12:46.000000Z
+      handler_name    : OBS Audio Handler
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+[in#0 @ 0x56480521c900] Error opening input: Invalid data found when processing input
+Error opening input file /home/kingnixon/Videos/Nova/Clips-backup.7z.
+Error opening input files: Invalid data found when processing input
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/YTDown.com_YouTube_Star-Citizen-Origin-400i_Media_SNtwvxjF4Zg_001_1080p.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf61.9.107
+  Duration: 00:01:19.97, start: 0.000000, bitrate: 1375 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1920x824 [SAR 1:1 DAR 240:103], 1240 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+  Stream #0:1[0x2](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 127 kb/s (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+[swscaler @ 0x7f73b0031900] deprecated pixel format used, make sure you did set range correctly
+[swscaler @ 0x7f1fcc031900] deprecated pixel format used, make sure you did set range correctly
+[swscaler @ 0x7f0758031900] deprecated pixel format used, make sure you did set range correctly
+[swscaler @ 0x7f5f20031900] deprecated pixel format used, make sure you did set range correctly
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-15 19-14-22.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-16T01:14:22.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-16_17-00-24.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und)Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-16 16-49-08.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-16T22:49:08.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-13 17-02-39.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-13T23:02:39.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+: Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-16T23:00:24.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+[image2 @ 0x56283ac1e280] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-16_17-00-24.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x56283ac1e280] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A speed=N/A elapsed=0:00:01.50    [out#0/image2 @ 0x56283aa71a00] video:54KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.0192x elapsed=0:00:00.86    
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+[image2 @ 0x560e8638be40] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-13 17-02-39.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x560e8638be40] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x560e8632a340] video:20KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.5 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.00861x elapsed=0:00:01.93    
+[image2 @ 0x55a3a2b9b280] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-16 16-49-08.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x55a3a2b9b280] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x55a3a2b30ac0] video:60KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.6 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.0105x elapsed=0:00:01.58    
+ffmpeg version n8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15.2.1 (GCC) 20251112
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/rec_20260107_080110.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf62.3.100
+  Duration: 00:00:17.48, start: 0.000000, bitrate: 1855 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High 4:4:4 Predictive) (avc1 / 0x31637661), yuv444p(progressive), 2560x1440, 1852 kb/s, 19.33 fps, 60 tbr, 15360 tbn (default)
+    Metadata:
+      handler_name    : VideoHandler
+      vendor_id       : [0][0][0][0]
+      encoder         : Lavc62.11.100 libx264
+[image2 @ 0x559bb57f8880] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-15 19-14-22.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x559bb57f8880] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+[out#0/image2 @ 0x559bb51faec0] video:11KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.6 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.01x elapsed=0:00:01.66    
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/kingnixon/Videos/Nova/YTDown.com_YouTube_Star-Citizen-Wallpaper-Engine-Orbiting-P_Media_GKMpAWF4Iqk_001_1080p.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf61.9.107
+  Duration: 00:04:50.44, start: 0.000000, bitrate: 3561 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 3423 kb/s, 60 fps, 60 tbr, 15360 tbn (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 128 kb/s (default)
+    Metadata:
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> png (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/YTDown.com_YouTube_Star-Citizen-Origin-400i_Media_SNtwvxjF4Zg_001_1080p.mp4.png':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 150:103 DAR 240:103], q=2-31, 200 kb/s, 30 fps, 30 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+[image2 @ 0x560c41f32000] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/YTDown.com_YouTube_Star-Citizen-Origin-400i_Media_SNtwvxjF4Zg_001_1080p.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x560c41f32000] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x560c41f63500] video:22KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.03 bitrate=N/A speed=0.0428x elapsed=0:00:00.77    
+[swscaler @ 0x7fb488031900] deprecated pixel format used, make sure you did set range correctly
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/2025-12-24_18-12-46.mp4.png':
+  Metadata:
+    major_brand     : iso4
+    minor_version   : 0
+    compatible_brands: iso4isomobs1iso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      creation_time   : 2025-12-25T00:12:46.000000Z
+      handler_name    : OBS Video Handler
+      vendor_id       : [0][0][0][0]
+[image2 @ 0x55d507232580] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/2025-12-24_18-12-46.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x55d507232580] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x55d507794fc0] video:39KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.8 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.0135x elapsed=0:00:01.23    
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/rec_20260107_080110.mp4.png':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/unknown/unknown, progressive), 240x150, q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      handler_name    : VideoHandler
+      vendor_id       : [0][0][0][0]
+[image2 @ 0x55bd9f1b4680] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/rec_20260107_080110.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x55bd9f1b4680] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x55bd9f1b4580] video:49KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.03 bitrate=N/A dup=1 drop=0 speed=0.0467x elapsed=0:00:00.71    
+Output #0, image2, to '/home/kingnixon/Videos/Nova/thumbnails/YTDown.com_YouTube_Star-Citizen-Wallpaper-Engine-Orbiting-P_Media_GKMpAWF4Iqk_001_1080p.mp4.png':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf62.3.100
+  Stream #0:0(und): Video: png, rgb24(pc, gbr/bt709/bt709, progressive), 240x150 [SAR 10:9 DAR 16:9], q=2-31, 200 kb/s, 60 fps, 60 tbn (default)
+    Metadata:
+      encoder         : Lavc62.11.100 png
+      handler_name    : ISO Media file produced by Google Inc.
+      vendor_id       : [0][0][0][0]
+[image2 @ 0x5569a3339980] The specified filename '/home/kingnixon/Videos/Nova/thumbnails/YTDown.com_YouTube_Star-Citizen-Wallpaper-Engine-Orbiting-P_Media_GKMpAWF4Iqk_001_1080p.mp4.png' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x5569a3339980] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x5569a33204c0] video:37KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.01 bitrate=N/A speed=0.0232x elapsed=0:00:00.71    

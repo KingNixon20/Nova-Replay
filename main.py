@@ -176,6 +176,10 @@ class NovaReplayWindow(Gtk.Window):
             min-height: 20px;
             min-width: 20px;
         }
+        #min-button GtkImage {
+            min-height: 18px;
+            min-width: 18px;
+        }
         """
         style_provider = Gtk.CssProvider()
         style_provider.load_from_data(css)
@@ -293,6 +297,97 @@ class NovaReplayWindow(Gtk.Window):
 
         top_bar.pack_end(exit_event, False, False, 8)
 
+        # Minimize button (left of exit) with hover image swapping
+        min_img_widget = Gtk.Image()
+        min_path = os.path.join(os.path.dirname(__file__), 'img', 'min.png')
+        self._min_default = min_path
+        self._min_hover = self.get_img_file('min1.png')
+        self._min_hovered = False
+        if os.path.exists(min_path):
+            try:
+                # slightly smaller default pixbuf for the minimize button
+                pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(min_path, -1, 16, True)
+                min_img_widget.set_from_pixbuf(pix)
+            except Exception:
+                try:
+                    min_img_widget.set_from_file(min_path)
+                except Exception:
+                    min_img_widget = Gtk.Image.new_from_icon_name('window-minimize', Gtk.IconSize.MENU)
+        else:
+            min_img_widget = Gtk.Image.new_from_icon_name('window-minimize', Gtk.IconSize.MENU)
+
+        min_event = Gtk.EventBox()
+        min_event.set_name('min-button')
+        min_event.add(min_img_widget)
+        min_event.set_tooltip_text('Minimize')
+        try:
+            # make minimize slightly smaller than the exit button
+            min_event.set_size_request(24, 24)
+            min_event.set_halign(Gtk.Align.END)
+            min_event.set_margin_end(4)
+        except Exception:
+            pass
+
+        def _on_min_clicked(_, __=None):
+            try:
+                self.iconify()
+            except Exception:
+                try:
+                    self.window.iconify()
+                except Exception:
+                    pass
+
+        def _scale_min_image(widget, allocation):
+            try:
+                # scale smaller range for the minimized control
+                h = max(10, min(24, allocation.height - 8))
+                p = self._min_hover if getattr(self, '_min_hovered', False) and os.path.exists(self._min_hover) else self._min_default
+                if os.path.exists(p):
+                    try:
+                        pix2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(p, -1, h, True)
+                        GLib.idle_add(min_img_widget.set_from_pixbuf, pix2)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        def _on_min_enter(widget, event):
+            try:
+                self._min_hovered = True
+                try:
+                    _scale_min_image(top_bar, top_bar.get_allocation())
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return False
+
+        def _on_min_leave(widget, event):
+            try:
+                self._min_hovered = False
+                try:
+                    _scale_min_image(top_bar, top_bar.get_allocation())
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return False
+
+        try:
+            min_event.connect('button-press-event', _on_min_clicked)
+            min_event.connect('enter-notify-event', _on_min_enter)
+            min_event.connect('leave-notify-event', _on_min_leave)
+        except Exception:
+            pass
+
+        try:
+            top_bar.connect('size-allocate', _scale_min_image)
+        except Exception:
+            pass
+
+        # pack minimize to the left of the exit button
+        top_bar.pack_end(min_event, False, False, 6)
+
 
 
 
@@ -308,6 +403,88 @@ class NovaReplayWindow(Gtk.Window):
         main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         main_box.get_style_context().add_class('main-bg')
         self.add(main_box)
+
+        # Developer diagnostic: print preferred min/natural sizes for widgets
+        # Set environment variable NOVA_PRINT_MINIMUMS=1 to enable and exit after printing.
+        if os.environ.get('NOVA_PRINT_MINIMUMS'):
+            def _print_min_sizes(widget, path='root'):
+                try:
+                    wmin, wnat = widget.get_preferred_width()
+                except Exception:
+                    wmin = wnat = None
+                try:
+                    hmin, hnat = widget.get_preferred_height()
+                except Exception:
+                    hmin = hnat = None
+                print(f"{path}: {widget.__class__.__name__} minW={wmin} natW={wnat} minH={hmin} natH={hnat}")
+                # recurse into children (handle Containers and Bins)
+                try:
+                    children = widget.get_children()
+                except Exception:
+                    try:
+                        child = widget.get_child()
+                        children = [child] if child is not None else []
+                    except Exception:
+                        children = []
+                for i, c in enumerate(children):
+                    _print_min_sizes(c, f"{path}/{c.__class__.__name__}[{i}]")
+
+            def _do_print():
+                print('--- Widget preferred size diagnostics ---')
+                try:
+                    _print_min_sizes(self)
+                except Exception as e:
+                    print('Diagnostic error:', e)
+                sys.exit(0)
+
+            def _schedule_print():
+                try:
+                    # ensure widgets are realized so preferred sizes are meaningful
+                    try:
+                        self.show_all()
+                    except Exception:
+                        pass
+                    # delay a bit to allow layout to stabilize
+                    GLib.timeout_add(200, _do_print)
+                except Exception as e:
+                    print('Schedule error:', e)
+                return False
+
+            GLib.idle_add(_schedule_print)
+
+        # Runtime resize tracing: set NOVA_TRACE_RESIZE=1 to print allocations on resize
+        if os.environ.get('NOVA_TRACE_RESIZE'):
+            def _on_alloc(widget, allocation):
+                try:
+                    print(f'Window alloc: w={allocation.width} h={allocation.height}')
+                    names = ['flow', 'clip_scrolled', 'preview_container', 'preview_widget', 'left_panel', 'right_panel', 'editor_flow_scrolled']
+                    for n in names:
+                        w = getattr(self, n, None)
+                        if w is None:
+                            continue
+                        try:
+                            alloc = w.get_allocation()
+                            print(f'  {n}: alloc w={alloc.width} h={alloc.height}')
+                        except Exception:
+                            try:
+                                pmin, pnat = w.get_preferred_width()
+                                vmin, vnat = w.get_preferred_height()
+                                print(f'  {n}: pref wmin={pmin} wnat={pnat} hmin={vmin} hnat={vnat}')
+                            except Exception:
+                                pass
+                except Exception as e:
+                    print('resize trace error:', e)
+                return False
+
+            def _attach_trace():
+                try:
+                    self.connect('size-allocate', _on_alloc)
+                    print('Resize tracing attached')
+                except Exception as e:
+                    print('Attach trace failed:', e)
+                return False
+
+            GLib.idle_add(_attach_trace)
 
         # Sidebar (smaller)
         sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -879,7 +1056,13 @@ class NovaReplayWindow(Gtk.Window):
                         desired_h = int(self.grid_rows * (tile_total + row_spacing) + padding)
                     self.clip_scrolled.set_vexpand(False)
                     try:
-                        self.clip_scrolled.set_size_request(0, desired_h)
+                        # Do not force a persistent size request here — allow the scrolled
+                        # window to shrink when the main window is resized smaller.
+                        # Previously we called `set_size_request(0, desired_h)` which
+                        # prevented shrinking after enlarging. Use a soft maximum by
+                        # setting a temporary max height via CSS-like approach is
+                        # non-trivial; instead avoid setting an explicit size request.
+                        self.clip_scrolled.set_size_request(0, -1)
                     except Exception:
                         pass
                 except Exception:
@@ -901,7 +1084,8 @@ class NovaReplayWindow(Gtk.Window):
 
         # Left: media list / project panel
         left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        left_panel.set_size_request(220, -1)
+        # allow left panel to shrink smaller so overall window can be resized down
+        left_panel.set_size_request(120, -1)
         left_panel.get_style_context().add_class('editor-list')
         lbl_media = Gtk.Label(label='Media')
         lbl_media.set_xalign(0)
@@ -964,7 +1148,8 @@ class NovaReplayWindow(Gtk.Window):
         center_panel.get_style_context().add_class('video-preview')
         # preview container: use an Overlay so we can place a spinner above the video
         self.preview_container = Gtk.Overlay()
-        self.preview_container.set_size_request(640, 360)
+        # smaller default preview size to avoid preventing window shrink
+        self.preview_container.set_size_request(320, 180)
         self.preview_container.get_style_context().add_class('preview-area')
         # placeholder image widget for thumbnails when not playing
         self.preview_widget = Gtk.Image()
@@ -1019,7 +1204,8 @@ class NovaReplayWindow(Gtk.Window):
 
         # Right: tools / properties
         right_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        right_panel.set_size_request(260, -1)
+        # allow right panel to shrink smaller for compact layouts
+        right_panel.set_size_request(160, -1)
         tools_lbl = Gtk.Label(label='Tools')
         tools_lbl.get_style_context().add_class('dim-label')
         right_panel.pack_start(tools_lbl, False, False, 6)
@@ -1067,8 +1253,9 @@ class NovaReplayWindow(Gtk.Window):
         # horizontal paned: left panel resizable, right side contains center+right
         pan = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         try:
-            pan.pack1(left_panel, resize=True, shrink=False)
-            pan.pack2(center_right, resize=True, shrink=False)
+            # allow children to shrink when the window is resized smaller
+            pan.pack1(left_panel, resize=True, shrink=True)
+            pan.pack2(center_right, resize=True, shrink=True)
         except Exception:
             # older GTK versions use add1/add2
             try:
@@ -2574,7 +2761,8 @@ class NovaReplayWindow(Gtk.Window):
                 # create drawing area if needed
                 if not getattr(self, '_appsink_draw', None):
                     da = Gtk.DrawingArea()
-                    da.set_size_request(640, 360)
+                    # reduce drawing area min size so the window can shrink
+                    da.set_size_request(320, 180)
                     da.connect('draw', self._on_draw_appsink)
                     self._appsink_draw = da
                 else:
