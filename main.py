@@ -119,7 +119,7 @@ class NovaReplayWindow(Gtk.Window):
     def __init__(self):
         super().__init__(title="Nova")
         # Smaller default size so the window opens compactly
-        self.set_default_size(1200, 700)
+        self.set_default_size(1200, 800)
         # Allow arbitrary resizing; set a very small minimum so user can resize to any size
         self.set_resizable(True)
         try:
@@ -151,7 +151,7 @@ class NovaReplayWindow(Gtk.Window):
         }
         .selected-tile { border: 2px solid #2b6cb0; }
         .main-bg { background: #000000; }
-        .clip-row { background: #1f1f1f; border-radius: 6px; padding: 6px; }
+        .clip-row { background: #02010c; border-radius: 6px; padding: 6px; }
         .clip-row { padding: 8px; }
         .dim-label { color: #94a3b8; }
         /* Segmented control (dark mode pill) */
@@ -162,7 +162,7 @@ class NovaReplayWindow(Gtk.Window):
         .segmented-container { background: transparent; border-bottom: 1px solid #2e3134; padding-bottom: 4px; margin-bottom: 4px; }
         .placeholder { background: transparent; border: none; }
         /* lower tile area below thumbnails */
-        .tile-lower { background: #00ff00; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding: 6px; }
+        .tile-lower { background: #1F1F1F; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding: 6px; }
         /* Custom client-side header styled like Windows 10-ish */
         .custom-header { background: #000000; }
         .custom-header .primary-button { background: #0078d7; color: #ffffff; border-radius: 4px; }
@@ -1043,6 +1043,16 @@ class NovaReplayWindow(Gtk.Window):
                         self.flow.set_max_children_per_line(self.flow_cols)
                     except Exception:
                         pass
+                # compute columns that can fit with the fixed thumb width
+                thumb_w = self.thumb_size[0]
+                possible_cols = max(1, (width + spacing) // (thumb_w + spacing))
+                # update flow columns but do not change thumb_size
+                if possible_cols != getattr(self, 'flow_cols', None):
+                    self.flow_cols = possible_cols
+                    try:
+                        self.flow.set_max_children_per_line(self.flow_cols)
+                    except Exception:
+                        pass
                 # enforce a fixed scroller height based on `self.grid_rows`
                 try:
                     row_spacing = self.flow.get_row_spacing() or 6
@@ -1056,13 +1066,7 @@ class NovaReplayWindow(Gtk.Window):
                         desired_h = int(self.grid_rows * (tile_total + row_spacing) + padding)
                     self.clip_scrolled.set_vexpand(False)
                     try:
-                        # Do not force a persistent size request here — allow the scrolled
-                        # window to shrink when the main window is resized smaller.
-                        # Previously we called `set_size_request(0, desired_h)` which
-                        # prevented shrinking after enlarging. Use a soft maximum by
-                        # setting a temporary max height via CSS-like approach is
-                        # non-trivial; instead avoid setting an explicit size request.
-                        self.clip_scrolled.set_size_request(0, -1)
+                        self.clip_scrolled.set_size_request(0, desired_h)
                     except Exception:
                         pass
                 except Exception:
@@ -1084,8 +1088,8 @@ class NovaReplayWindow(Gtk.Window):
 
         # Left: media list / project panel
         left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        # allow left panel to shrink smaller so overall window can be resized down
-        left_panel.set_size_request(120, -1)
+        # left panel default minimum width
+        left_panel.set_size_request(220, -1)
         left_panel.get_style_context().add_class('editor-list')
         lbl_media = Gtk.Label(label='Media')
         lbl_media.set_xalign(0)
@@ -1148,8 +1152,7 @@ class NovaReplayWindow(Gtk.Window):
         center_panel.get_style_context().add_class('video-preview')
         # preview container: use an Overlay so we can place a spinner above the video
         self.preview_container = Gtk.Overlay()
-        # smaller default preview size to avoid preventing window shrink
-        self.preview_container.set_size_request(320, 180)
+        self.preview_container.set_size_request(640, 360)
         self.preview_container.get_style_context().add_class('preview-area')
         # placeholder image widget for thumbnails when not playing
         self.preview_widget = Gtk.Image()
@@ -1204,8 +1207,7 @@ class NovaReplayWindow(Gtk.Window):
 
         # Right: tools / properties
         right_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        # allow right panel to shrink smaller for compact layouts
-        right_panel.set_size_request(160, -1)
+        right_panel.set_size_request(260, -1)
         tools_lbl = Gtk.Label(label='Tools')
         tools_lbl.get_style_context().add_class('dim-label')
         right_panel.pack_start(tools_lbl, False, False, 6)
@@ -1253,9 +1255,8 @@ class NovaReplayWindow(Gtk.Window):
         # horizontal paned: left panel resizable, right side contains center+right
         pan = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         try:
-            # allow children to shrink when the window is resized smaller
-            pan.pack1(left_panel, resize=True, shrink=True)
-            pan.pack2(center_right, resize=True, shrink=True)
+            pan.pack1(left_panel, resize=True, shrink=False)
+            pan.pack2(center_right, resize=True, shrink=False)
         except Exception:
             # older GTK versions use add1/add2
             try:
@@ -1936,7 +1937,8 @@ class NovaReplayWindow(Gtk.Window):
                     target_w = min(orig_tw, target_w)
                 except Exception:
                     pass
-                tile_box.set_size_request(target_w, total_h)
+                # allow tile width to be flexible so the grid can shrink horizontally
+                tile_box.set_size_request(0, total_h)
                 tile_box.set_hexpand(False)
                 tile_box.set_vexpand(False)
             except Exception:
@@ -1959,7 +1961,10 @@ class NovaReplayWindow(Gtk.Window):
                 try:
                     # set the pixbuf so it covers the image area (img_h)
                     self._set_image_cover(img, normal_decor, target_w, img_h, overfill=12)
-                    img.set_size_request(target_w, img_h)
+                    try:
+                        img.set_size_request(0, img_h)
+                    except Exception:
+                        pass
                 except Exception:
                     try:
                         img.set_from_file(normal_decor)
@@ -1968,7 +1973,10 @@ class NovaReplayWindow(Gtk.Window):
             else:
                 img = Gtk.Image.new_from_icon_name('video-x-generic', Gtk.IconSize.DIALOG)
                 try:
-                    img.set_size_request(target_w, img_h)
+                    try:
+                        img.set_size_request(0, img_h)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 # generate thumbnail frame and decorated images in background if ffmpeg available
@@ -1999,7 +2007,7 @@ class NovaReplayWindow(Gtk.Window):
             # lower info area below the image (label + actions)
             lower_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             try:
-                lower_box.set_size_request(tw, extra_h)
+                lower_box.set_size_request(0, extra_h)
                 lower_box.get_style_context().add_class('tile-lower')
             except Exception:
                 pass
@@ -2762,7 +2770,7 @@ class NovaReplayWindow(Gtk.Window):
                 if not getattr(self, '_appsink_draw', None):
                     da = Gtk.DrawingArea()
                     # reduce drawing area min size so the window can shrink
-                    da.set_size_request(320, 180)
+                    da.set_size_request(640, 360)
                     da.connect('draw', self._on_draw_appsink)
                     self._appsink_draw = da
                 else:
