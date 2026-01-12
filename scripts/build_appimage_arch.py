@@ -17,6 +17,7 @@ import json
 import shutil
 import subprocess
 import urllib.request
+import glob
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 APPDIR = os.path.join(ROOT, 'AppDir')
@@ -39,13 +40,26 @@ def fetch_latest_asset(owner, repo, name_substr, out_path):
             return out_path
     raise RuntimeError(f'No asset matching {name_substr} in {owner}/{repo} latest release')
 
-def ensure_tools():
+def ensure_tools(force=False):
+    """Ensure linuxdeploy and appimagetool exist. If `force` is True, re-download them."""
+    if force and os.path.exists(LINUXDEPLOY):
+        try:
+            print('Force update enabled: removing existing', LINUXDEPLOY)
+            os.remove(LINUXDEPLOY)
+        except Exception:
+            pass
     if not os.path.exists(LINUXDEPLOY):
         print('Downloading linuxdeploy...')
         # try the continuous build path
         url = 'https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage'
         urllib.request.urlretrieve(url, LINUXDEPLOY)
         os.chmod(LINUXDEPLOY, 0o755)
+    if force and os.path.exists(APPIMAGETOOL):
+        try:
+            print('Force update enabled: removing existing', APPIMAGETOOL)
+            os.remove(APPIMAGETOOL)
+        except Exception:
+            pass
     if not os.path.exists(APPIMAGETOOL):
         print('Downloading appimagetool (latest)...')
         try:
@@ -187,7 +201,9 @@ def run_cmd(cmd, env=None, cwd=None):
 
 def build():
     prepare_appdir()
-    ensure_tools()
+    # allow forcing tool updates by setting env var FORCE_TOOL_UPDATE=1
+    force_tools = os.environ.get('FORCE_TOOL_UPDATE', '') == '1'
+    ensure_tools(force=force_tools)
 
     # run linuxdeploy (optional) to populate AppDir
     if os.path.exists(LINUXDEPLOY):
@@ -196,6 +212,21 @@ def build():
             run_cmd(cmd)
         except SystemExit as e:
             print('linuxdeploy step failed, continuing to appimagetool (if AppDir is already valid).', e)
+
+    # remove any previous AppImage artifacts that match the build architecture
+    # so the new AppImage replaces older ones instead of leaving duplicates.
+    existing = glob.glob(os.path.join(ROOT, '*-x86_64.AppImage'))
+    # Do not remove the downloaded tool AppImages (linuxdeploy/appimagetool)
+    tool_basenames = {os.path.basename(LINUXDEPLOY), os.path.basename(APPIMAGETOOL)}
+    for f in existing:
+        if os.path.basename(f) in tool_basenames:
+            print('Preserving tool file', f)
+            continue
+        try:
+            print('Removing existing AppImage', f)
+            os.remove(f)
+        except Exception as e:
+            print('Warning: failed to remove', f, e)
 
     # create appimage with explicit ARCH
     env = os.environ.copy()

@@ -41,6 +41,8 @@ class Recorder:
     You can optionally pass `preferred_backend` to force a backend when starting.
     Valid values: 'auto', 'ffmpeg-x11', 'wf-recorder', 'pipewire'
     """
+    
+    # valid backends: 'auto', 'ffmpeg-x11', 'wf-recorder', 'pipewire', 'wl-screenrec'
 
     def __init__(self, filename: Optional[str] = None, mode: str = "fullscreen", area: Optional[tuple] = None, fps: int = 60, preferred_backend: str = 'auto', settings: Optional[dict] = None):
         os.makedirs(RECORDINGS_DIR, exist_ok=True)
@@ -91,6 +93,8 @@ class Recorder:
             if disp == "wayland":
                 if is_command_available("wf-recorder"):
                     return 'wf-recorder'
+                if is_command_available("wl-screenrec"):
+                    return 'wl-screenrec'
                 return 'pipewire'
             return 'ffmpeg-x11'
 
@@ -214,6 +218,70 @@ class Recorder:
             # wf-recorder started successfully
             self.proc = proc
             return
+
+        if backend == 'wl-screenrec':
+            # wl-screenrec: attempt to record directly to file using detected flag
+            if not is_command_available('wl-screenrec'):
+                backend = choose_auto()
+            else:
+                out = self.outfile
+                cmd = self._wl_screenrec_cmd(output_override=out)
+                if not cmd:
+                    msg = ('Could not determine wl-screenrec output flag; check `wl-screenrec --help` and update the recorder implementation.')
+                    print(msg)
+                    if callable(getattr(self, 'on_error', None)):
+                        try:
+                            self.on_error(msg)
+                        except Exception:
+                            pass
+                    # fallback to auto-chosen backend
+                    backend = choose_auto()
+                else:
+                    print("Starting recorder with:", " ".join(cmd))
+                    logp = self._open_log('wl-screenrec')
+                    self._log_handle = logp
+                    proc = subprocess.Popen(cmd, stdout=logp, stderr=logp)
+                    try:
+                        time.sleep(0.5)
+                    except Exception:
+                        pass
+                    rc = proc.poll()
+                    if rc is not None and rc != 0:
+                        print('wl-screenrec failed to start; checking fallback')
+                        # fallback behavior similar to wf-recorder
+                        if disp == 'x11':
+                            print('Falling back to ffmpeg x11grab')
+                            cmd2 = self._ffmpeg_x11_cmd()
+                            logp2 = self._open_log('ffmpeg')
+                            self._log_handle = logp2
+                            self.proc = subprocess.Popen(cmd2, stdout=logp2, stderr=logp2)
+                            return
+                        elif disp == 'wayland':
+                            if is_command_available('ffmpeg') and self._ffmpeg_supports_pipewire():
+                                print('Attempting ffmpeg pipewire fallback (best-effort)')
+                                cmd2 = self._ffmpeg_pipewire_cmd()
+                                logp2 = self._open_log('ffmpeg')
+                                self._log_handle = logp2
+                                p2 = subprocess.Popen(cmd2, stdin=subprocess.PIPE, stdout=logp2, stderr=logp2)
+                                try:
+                                    time.sleep(0.5)
+                                except Exception:
+                                    pass
+                                if p2.poll() is None:
+                                    self.proc = p2
+                                    return
+                                else:
+                                    print('ffmpeg pipewire fallback failed; check logs')
+                                    return
+                            else:
+                                print('ffmpeg not available or lacks pipewire support; cannot fallback')
+                                return
+                        else:
+                            print('Unknown display type; cannot fallback automatically.')
+                            return
+                    # wl-screenrec started successfully
+                    self.proc = proc
+                    return
 
         # default fallback
         cmd = self._ffmpeg_x11_cmd()
@@ -490,6 +558,37 @@ class Recorder:
             w, h, x, y = self.area
             # wf-recorder accepts -g "WxH+X+Y"
             cmd += ["-g", f"{w}x{h}+{x}+{y}"]
+        return cmd
+
+    def _wl_screenrec_cmd(self, output_override: Optional[str] = None):
+        # Build wl-screenrec invocation using documented flags from `wl-screenrec --help`.
+        # According to help, use `-f/--filename` to set the output file and
+        # `-o/--output` to select the Wayland output/display to record.
+        out = output_override if output_override else self.outfile
+        cmd = ['wl-screenrec']
+
+        # Prefer an explicit output name supplied in settings (UI). Do NOT
+        # pass the socket name from $WAYLAND_DISPLAY because wl-screenrec
+        # expects compositor output names (e.g. eDP-1, DP-1) not the socket.
+        wl_out = None
+        try:
+            wl_out = (self.settings or {}).get('wl_output')
+        except Exception:
+            wl_out = None
+        if wl_out:
+            cmd += ['--output', wl_out]
+
+        # If region mode, format geometry as `x,y WxH` per wl-screenrec help
+        if self.mode == 'region' and self.area:
+            try:
+                w, h, x, y = self.area
+                geom = f"{x},{y} {w}x{h}"
+                cmd += ['-g', geom]
+            except Exception:
+                pass
+
+        # specify filename using short flag which is documented in help
+        cmd += ['-f', out]
         return cmd
 
     def _screen_geometry_x11(self):

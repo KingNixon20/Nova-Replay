@@ -131,8 +131,8 @@ class NovaReplayWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Nova")
-        # Smaller default size so the window opens compactly
-        self.set_default_size(1200, 800)
+        # Smaller default size so the window opens compactly (widened)
+        self.set_default_size(1400, 800)
         # Allow arbitrary resizing; set a very small minimum so user can resize to any size
         self.set_resizable(True)
         try:
@@ -149,14 +149,14 @@ class NovaReplayWindow(Gtk.Window):
         .primary-button GtkLabel { color: #ffffff; }
         .primary-button.recording { background: #c0392b; }
         .recording { background: #c0392b; }
-        .sidebar { background: #000000; color: #cfd8e3; padding: 2px; min-width: 0px; }
+        .sidebar { background: #111216; color: #cfd8e3; padding: 2px; min-width: 0px; }
         .nav-button { background: transparent; color: #cfd8e3; border: none; padding: 0; margin: 2px; border-radius: 4px; min-width: 0px; min-height: 0px; }
         .nav-button GtkImage { margin: 4px; }
         .nav-button GtkLabel { color: #05021b; }
         /* thin, unobtrusive divider between sidebar and content */
         .side-divider {
-            /* Match the sidebar background so any seam is invisible */
-            background: #000000;
+            /* make divider invisible */
+            background: transparent;
             min-width: 0px;
             margin: 0;
             border-left: none;
@@ -261,7 +261,7 @@ class NovaReplayWindow(Gtk.Window):
             except Exception:
                 pass
             exit_event.set_halign(Gtk.Align.END)
-            exit_event.set_margin_end(6)
+            exit_event.set_margin_end(2)
         except Exception:
             pass
 
@@ -323,7 +323,7 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
 
-        top_bar.pack_end(exit_event, False, False, 8)
+        top_bar.pack_end(exit_event, False, False, 4)
 
         # Maximize button (between minimize and exit) with hover image swapping
         max_img_widget = Gtk.Image()
@@ -647,6 +647,53 @@ class NovaReplayWindow(Gtk.Window):
             except Exception:
                 sidebar.pack_start(logo_img, False, False, 6)
 
+        # Helper: connect hover swap for icon buttons (default -> hover variant)
+        def _connect_hover_swap(button, image_widget, default_path, hover_path, size_px=28):
+            # store paths for potential reuse
+            try:
+                setattr(button, '_icon_default', default_path)
+                setattr(button, '_icon_hover', hover_path)
+                setattr(button, '_icon_hovered', False)
+            except Exception:
+                pass
+
+            def _set_pix(p):
+                try:
+                    if os.path.exists(p):
+                        pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(p, size_px, size_px, True)
+                        image_widget.set_from_pixbuf(pix)
+                except Exception:
+                    try:
+                        image_widget.set_from_file(p)
+                    except Exception:
+                        pass
+
+            def _on_enter(w, e):
+                try:
+                    setattr(button, '_icon_hovered', True)
+                    hp = getattr(button, '_icon_hover', None)
+                    if hp and os.path.exists(hp):
+                        _set_pix(hp)
+                except Exception:
+                    pass
+                return False
+
+            def _on_leave(w, e):
+                try:
+                    setattr(button, '_icon_hovered', False)
+                    dp = getattr(button, '_icon_default', None)
+                    if dp and os.path.exists(dp):
+                        _set_pix(dp)
+                except Exception:
+                    pass
+                return False
+
+            try:
+                button.connect('enter-notify-event', _on_enter)
+                button.connect('leave-notify-event', _on_leave)
+            except Exception:
+                pass
+
         # Clips button (icon-only, scaled)
         btn_clips = Gtk.Button()
         clip_icon_path = self.get_img_file('clips.png')
@@ -672,9 +719,23 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         btn_clips.get_style_context().add_class('nav-button')
-        btn_clips.connect("clicked", lambda w: self.content_stack.set_visible_child_name('clips'))
+        def _on_clips_clicked(w):
+            try:
+                self.content_stack.set_visible_child_name('clips')
+            except Exception:
+                pass
+            try:
+                _set_nav_selected('clips')
+            except Exception:
+                pass
+        btn_clips.connect("clicked", _on_clips_clicked)
         # pack clips button immediately so subsequent buttons appear below it
         sidebar.pack_start(btn_clips, False, False, 2)
+        # wire hover swap (clips -> clips1)
+        try:
+            _connect_hover_swap(btn_clips, btn_clips_img, clip_icon_path, self.get_img_file('clips1.png'))
+        except Exception:
+            pass
 
         # Editor button (under Clips)
         btn_editor = Gtk.Button()
@@ -701,8 +762,22 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         btn_editor.get_style_context().add_class('nav-button')
-        btn_editor.connect("clicked", lambda w: self.content_stack.set_visible_child_name('editor'))
+        def _on_editor_clicked(w):
+            try:
+                self.content_stack.set_visible_child_name('editor')
+            except Exception:
+                pass
+            try:
+                _set_nav_selected('editor')
+            except Exception:
+                pass
+        btn_editor.connect("clicked", _on_editor_clicked)
         sidebar.pack_start(btn_editor, False, False, 2)
+        # wire hover swap (editor -> editor1)
+        try:
+            _connect_hover_swap(btn_editor, btn_editor_img, editor_icon_path, self.get_img_file('editor1.png'))
+        except Exception:
+            pass
 
         # Settings button
         btn_settings = Gtk.Button()
@@ -729,10 +804,53 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         btn_settings.get_style_context().add_class('nav-button')
-        btn_settings.connect("clicked", lambda w: self.content_stack.set_visible_child_name('settings'))
+        def _on_settings_clicked(w):
+            try:
+                self.content_stack.set_visible_child_name('settings')
+            except Exception:
+                pass
+            try:
+                _set_nav_selected('settings')
+            except Exception:
+                pass
+        btn_settings.connect("clicked", _on_settings_clicked)
 
         # keep settings anchored to the bottom
         sidebar.pack_end(btn_settings, False, False, 6)
+        # wire hover swap (settings -> settings1)
+        try:
+            _connect_hover_swap(btn_settings, btn_settings_img, settings_icon_path, self.get_img_file('settings1.png'))
+        except Exception:
+            pass
+
+        # store nav buttons and provide a helper to mark one as selected
+        self._nav_buttons = {
+            'clips': (btn_clips, btn_clips_img, clip_icon_path, self.get_img_file('clips1.png')),
+            'editor': (btn_editor, btn_editor_img, editor_icon_path, self.get_img_file('editor1.png')),
+            'settings': (btn_settings, btn_settings_img, settings_icon_path, self.get_img_file('settings1.png')),
+        }
+
+        def _set_nav_selected(name):
+            for n, (b, img_w, def_p, hov_p) in self._nav_buttons.items():
+                try:
+                    # choose hover image for selected, default otherwise
+                    target = hov_p if n == name and hov_p and os.path.exists(hov_p) else def_p
+                    if target and os.path.exists(target):
+                        pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(target, 28, 28, True)
+                        GLib.idle_add(img_w.set_from_pixbuf, pix)
+                except Exception:
+                    pass
+
+        # set initial selection based on stack visible child name or default to 'clips'
+        try:
+            visible = None
+            try:
+                visible = self.content_stack.get_visible_child_name()
+            except Exception:
+                visible = None
+            _set_nav_selected(visible or 'clips')
+        except Exception:
+            pass
 
         # Wrap sidebar in an EventBox so we can receive enter/leave events
         self.sidebar = sidebar
@@ -1499,8 +1617,23 @@ class NovaReplayWindow(Gtk.Window):
         self.backend_combo = Gtk.ComboBoxText()
         self.backend_combo.append_text("ffmpeg (x11grab)")
         self.backend_combo.append_text("pipewire (ffmpeg)")
+        self.backend_combo.append_text("wl-screenrec (wl-screenrec)")
         self.backend_combo.set_active(0)
         settings_box.pack_start(self.backend_combo, False, False, 0)
+
+        # Optional: Wayland output name for wl-screenrec (compositor output id)
+        wl_out_label = Gtk.Label(label="Wayland output (optional):")
+        wl_out_label.set_xalign(0)
+        settings_box.pack_start(wl_out_label, False, False, 0)
+        self.wl_output_entry = Gtk.Entry()
+        try:
+            # populate from persisted settings if present
+            initial = self.settings.get('wl_output') if getattr(self, 'settings', None) else ''
+            if initial:
+                self.wl_output_entry.set_text(initial)
+        except Exception:
+            pass
+        settings_box.pack_start(self.wl_output_entry, False, False, 0)
 
         # Hotkey entry (informational)
         hotkey_label = Gtk.Label(label="Toggle recording hotkey:")
@@ -1811,8 +1944,14 @@ class NovaReplayWindow(Gtk.Window):
                     if pref == 'ffmpeg-x11':
                         self.backend_combo.set_active(0)
                     elif pref == 'pipewire':
-                        # after removing wf-recorder option, pipewire is at index 1
+                        # pipewire at index 1
                         self.backend_combo.set_active(1)
+                    elif pref == 'wl-screenrec':
+                        # wl-screenrec at index 2
+                        try:
+                            self.backend_combo.set_active(2)
+                        except Exception:
+                            self.backend_combo.set_active(0)
                     else:
                         self.backend_combo.set_active(0)
             except Exception:
@@ -1908,6 +2047,8 @@ class NovaReplayWindow(Gtk.Window):
             'threads': 0,
             'hwaccel': 'none',
         })
+        # optional wl-screenrec output name (compositor output id)
+        settings['wl_output'] = settings.get('wl_output', '')
         self.settings = settings
 
     def save_settings(self):
@@ -1923,6 +2064,8 @@ class NovaReplayWindow(Gtk.Window):
                 backend = 'ffmpeg-x11'
             elif txt and 'pipewire' in txt:
                 backend = 'pipewire'
+            elif txt and 'wl-screenrec' in txt:
+                backend = 'wl-screenrec'
         except Exception:
             backend = self.settings.get('preferred_backend', 'auto')
         hotkey = self.hotkey_entry.get_text() if hasattr(self, 'hotkey_entry') else self.settings.get('hotkey', 'Ctrl+Alt+R')
@@ -1963,6 +2106,7 @@ class NovaReplayWindow(Gtk.Window):
             'favorites': self.settings.get('favorites', {}),
             'encoder': enc,
             'bg_choice': self.settings.get('bg_choice', 'bg.png'),
+            'wl_output': getattr(self, 'wl_output_entry', None).get_text() if getattr(self, 'wl_output_entry', None) else self.settings.get('wl_output', ''),
         }
         try:
             with open(self.get_config_path(), 'w') as f:
@@ -2047,6 +2191,8 @@ class NovaReplayWindow(Gtk.Window):
                 pref = 'ffmpeg-x11'
             elif txt and 'pipewire' in txt:
                 pref = 'pipewire'
+            elif txt and 'wl-screenrec' in txt:
+                pref = 'wl-screenrec'
         except Exception:
             pref = 'auto'
         # warn if chosen backend binary likely missing
@@ -2057,6 +2203,11 @@ class NovaReplayWindow(Gtk.Window):
             pass
         # let Recorder choose a timestamped filename to avoid overwriting
         enc_settings = self.settings.get('encoder', {}) if getattr(self, 'settings', None) else {}
+        # pass wl_screenrec output preference into recorder settings so it can use it
+        try:
+            enc_settings['wl_output'] = self.settings.get('wl_output') if getattr(self, 'settings', None) else None
+        except Exception:
+            pass
         self.recorder = recorder.Recorder(mode=mode, preferred_backend=pref, settings=enc_settings)
         self.recorder.on_stop = self.on_record_stop
         # report recorder startup errors into the UI
@@ -3238,15 +3389,80 @@ class NovaReplayWindow(Gtk.Window):
 def _create_splash_window():
     # Use a normal top-level window but remove decorations (titlebar)
     splash = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-    splash.set_decorated(False)
+    # name the window so we can target it with CSS specifically
+    try:
+        splash.set_name('splash-window')
+    except Exception:
+        pass
+    try:
+        splash.set_app_paintable(True)
+        splash.set_opacity(1.0)
+    except Exception:
+        pass
+    # Use client-side decorations: let the window be decorated so we can
+    # replace the titlebar with our own header via `set_titlebar()`
+    splash.set_decorated(True)
     splash.set_keep_above(True)
     splash.set_position(Gtk.WindowPosition.CENTER)
     splash.set_default_size(480, 240)
     splash.set_resizable(False)
 
+    # Apply a small, local CSS theme for the splash so it's jet-black and
+    # uses client-side decorations for the headerbar.
+    css = b"""
+    /* Force a true jet-black background and remove any themed backgrounds */
+    window#splash-window, #splash-window, .splash-header, .splash-box {
+        background-color: #000000;
+        background-image: none;
+        background-repeat: no-repeat;
+        color: #ffffff;
+        box-shadow: none;
+        border: none;
+    }
+    .splash-label { color: #ffffff; font-weight: 600; }
+    """
+    try:
+        style_provider = Gtk.CssProvider()
+        style_provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), style_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    except Exception:
+        pass
+
+    # client-side headerbar (CSD) — acts as the splash header and is fully themed by our CSS
+    header = Gtk.HeaderBar()
+    header.set_show_close_button(False)
+    header.set_has_subtitle(False)
+    header.get_style_context().add_class('splash-header')
+    try:
+        header.set_size_request(-1, 28)
+    except Exception:
+        pass
+
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     box.set_border_width(16)
     box.get_style_context().add_class('splash-box')
+    try:
+        box.set_hexpand(True)
+        box.set_vexpand(True)
+    except Exception:
+        pass
+
+    # Prepare container that will hold header/content. If set_titlebar
+    # succeeds we won't pack the header into the container; if it fails
+    # we will fall back to packing the header so the UI remains consistent.
+    container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    try:
+        splash.set_titlebar(header)
+    except Exception:
+        try:
+            container.pack_start(header, False, False, 0)
+        except Exception:
+            pass
+    try:
+        container.set_hexpand(True)
+        container.set_vexpand(True)
+    except Exception:
+        pass
 
     # logo if available
     try:
@@ -3265,7 +3481,33 @@ def _create_splash_window():
     spinner = Gtk.Spinner()
     spinner.start()
     box.pack_start(spinner, False, False, 6)
-    splash.add(box)
+    container.pack_start(box, True, True, 0)
+    # add a drawing area behind the container to ensure a true opaque black background
+    overlay = Gtk.Overlay()
+    bg_draw = Gtk.DrawingArea()
+    try:
+        bg_draw.set_hexpand(True)
+        bg_draw.set_vexpand(True)
+    except Exception:
+        pass
+
+    def _draw_bg(widget, cr):
+        try:
+            cr.set_source_rgb(0.0, 0.0, 0.0)
+            a = widget.get_allocation()
+            cr.rectangle(0, 0, a.width, a.height)
+            cr.fill()
+        except Exception:
+            pass
+        return False
+
+    try:
+        bg_draw.connect('draw', _draw_bg)
+    except Exception:
+        pass
+    overlay.add(bg_draw)
+    overlay.add_overlay(container)
+    splash.add(overlay)
 
     return splash, spinner
 
