@@ -11,6 +11,20 @@ try:
 except Exception:
     pass
 from gi.repository import Gtk, GLib, Gdk, Pango, GdkPixbuf
+# Attempt to import pycairo (provides cairo.Context needed by GTK draw callbacks).
+# If missing, give a helpful message and try a gi fallback before exiting.
+try:
+    import cairo
+except Exception:
+    try:
+        # some environments expose cairo via gi.repository (rare); try as a last resort
+        from gi.repository import cairo as _gi_cairo
+        cairo = _gi_cairo
+    except Exception:
+        sys.stderr.write("Missing required Python 'cairo' module (pycairo).\n")
+        sys.stderr.write("Install on Debian/Ubuntu: sudo apt install python3-cairo python3-gi-cairo\n")
+        sys.stderr.write("Or install via pip: pip3 install pycairo\n")
+        raise
 try:
     from gi.repository import Gst
     Gst.init(None)
@@ -926,38 +940,9 @@ class NovaReplayWindow(Gtk.Window):
                 except Exception:
                     pass
 
-            # draw handler: scale using COVER logic and center; allow cropping
-            def _on_bg_draw(widget, cr):
-                try:
-                    if not getattr(self, '_bg_pixbuf_orig', None):
-                        return False
-                    alloc = widget.get_allocation()
-                    aw, ah = alloc.width, alloc.height
-                    if aw <= 0 or ah <= 0:
-                        return False
-                    ow = self._bg_pixbuf_orig.get_width()
-                    oh = self._bg_pixbuf_orig.get_height()
-                    try:
-                        scale = max(float(aw) / float(ow), float(ah) / float(oh)) if ow and oh else 1.0
-                    except Exception:
-                        scale = 1.0
-                    new_w = max(1, int(ow * scale))
-                    new_h = max(1, int(oh * scale))
-                    scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
-                    # center the image; allow negative offsets so it clips when window is smaller
-                    x = int((aw - new_w) / 2)
-                    y = int((ah - new_h) / 2)
-                    try:
-                        Gdk.cairo_set_source_pixbuf(cr, scaled, x, y)
-                        cr.paint()
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-                return False
-
+            # background draw handled by class method; connect to bound method
             try:
-                self._bg_draw.connect('draw', _on_bg_draw)
+                self._bg_draw.connect('draw', self._draw_background)
             except Exception:
                 pass
 
@@ -3145,6 +3130,34 @@ class NovaReplayWindow(Gtk.Window):
             alloc = widget.get_allocation()
             cr.rectangle(0, 0, alloc.width, alloc.height)
             cr.fill()
+        except Exception:
+            pass
+        return False
+
+    def _draw_background(self, widget, cr):
+        try:
+            if not getattr(self, '_bg_pixbuf_orig', None):
+                return False
+            alloc = widget.get_allocation()
+            aw, ah = alloc.width, alloc.height
+            if aw <= 0 or ah <= 0:
+                return False
+            ow = self._bg_pixbuf_orig.get_width()
+            oh = self._bg_pixbuf_orig.get_height()
+            try:
+                scale = max(float(aw) / float(ow), float(ah) / float(oh)) if ow and oh else 1.0
+            except Exception:
+                scale = 1.0
+            new_w = max(1, int(ow * scale))
+            new_h = max(1, int(oh * scale))
+            scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
+            x = int((aw - new_w) / 2)
+            y = int((ah - new_h) / 2)
+            try:
+                Gdk.cairo_set_source_pixbuf(cr, scaled, x, y)
+                cr.paint()
+            except Exception:
+                pass
         except Exception:
             pass
         return False
