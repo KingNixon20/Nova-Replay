@@ -188,6 +188,14 @@ class NovaReplayWindow(Gtk.Window):
         # Custom client-side header bar (CSD) — spans full window width
         top_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         try:
+            # make header a bit taller than default
+            try:
+                top_bar.set_size_request(-1, 35)
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
             # avoid enforcing a minimum height so window can shrink fully
             try:
                 top_bar.set_vexpand(False)
@@ -303,6 +311,106 @@ class NovaReplayWindow(Gtk.Window):
             pass
 
         top_bar.pack_end(exit_event, False, False, 8)
+
+        # Maximize button (between minimize and exit) with hover image swapping
+        max_img_widget = Gtk.Image()
+        max_path = os.path.join(os.path.dirname(__file__), 'img', 'enlarge.png')
+        self._max_default = max_path
+        self._max_hover = self.get_img_file('enlarge1.png')
+        self._max_hovered = False
+        if os.path.exists(max_path):
+            try:
+                # use a smaller default pixbuf for the maximize button
+                pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(max_path, -1, 14, True)
+                max_img_widget.set_from_pixbuf(pix)
+            except Exception:
+                try:
+                    max_img_widget.set_from_file(max_path)
+                except Exception:
+                    max_img_widget = Gtk.Image.new_from_icon_name('view-fullscreen', Gtk.IconSize.MENU)
+        else:
+            max_img_widget = Gtk.Image.new_from_icon_name('view-fullscreen', Gtk.IconSize.MENU)
+
+        max_event = Gtk.EventBox()
+        max_event.set_name('max-button')
+        max_event.add(max_img_widget)
+        max_event.set_tooltip_text('Maximize')
+        try:
+            try:
+                max_event.set_size_request(-1, -1)
+            except Exception:
+                pass
+            max_event.set_halign(Gtk.Align.END)
+            max_event.set_margin_end(6)
+        except Exception:
+            pass
+
+        def _on_max_clicked(_, __=None):
+            try:
+                w = self.get_window()
+                if w and (w.get_state() & Gdk.WindowState.MAXIMIZED):
+                    try:
+                        self.unmaximize()
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self.maximize()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        def _scale_max_image(widget, allocation):
+            try:
+                # keep the maximize icon smaller than other titlebar icons
+                h = max(10, min(18, allocation.height - 10))
+                p = self._max_hover if getattr(self, '_max_hovered', False) and os.path.exists(self._max_hover) else self._max_default
+                if os.path.exists(p):
+                    try:
+                        pix2 = GdkPixbuf.Pixbuf.new_from_file_at_scale(p, -1, h, True)
+                        GLib.idle_add(max_img_widget.set_from_pixbuf, pix2)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        def _on_max_enter(widget, event):
+            try:
+                self._max_hovered = True
+                try:
+                    _scale_max_image(top_bar, top_bar.get_allocation())
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return False
+
+        def _on_max_leave(widget, event):
+            try:
+                self._max_hovered = False
+                try:
+                    _scale_max_image(top_bar, top_bar.get_allocation())
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return False
+
+        try:
+            max_event.connect('button-press-event', _on_max_clicked)
+            max_event.connect('enter-notify-event', _on_max_enter)
+            max_event.connect('leave-notify-event', _on_max_leave)
+        except Exception:
+            pass
+
+        try:
+            top_bar.connect('size-allocate', _scale_max_image)
+        except Exception:
+            pass
+
+        # pack maximize to the left of the exit button
+        top_bar.pack_end(max_event, False, False, 6)
 
         # Minimize button (left of exit) with hover image swapping
         min_img_widget = Gtk.Image()
