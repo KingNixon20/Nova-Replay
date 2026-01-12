@@ -6,25 +6,24 @@ import subprocess
 import threading
 import gi
 gi.require_version('Gtk', '3.0')
+# Import pycairo immediately after requiring Gtk so the GI foreign struct converter
+# for cairo.Context is registered before GDK/GTK types are loaded.
+try:
+    import cairo
+except Exception:
+    sys.stderr.write("Missing required Python 'cairo' module (pycairo).\n")
+    sys.stderr.write("Install on Debian/Ubuntu: sudo apt install python3-cairo python3-gi-cairo\n")
+    sys.stderr.write("Or install via pip: pip3 install pycairo\n")
+    raise
+# sanity check: ensure the module provides cairo.Context
+if not hasattr(cairo, 'Context'):
+    sys.stderr.write("Imported 'cairo' does not expose 'Context' type; ensure pycairo is installed (not gi.repository.cairo).\n")
+    raise ImportError("pycairo missing or incorrect module imported")
 try:
     gi.require_version('Gst', '1.0')
 except Exception:
     pass
 from gi.repository import Gtk, GLib, Gdk, Pango, GdkPixbuf
-# Attempt to import pycairo (provides cairo.Context needed by GTK draw callbacks).
-# If missing, give a helpful message and try a gi fallback before exiting.
-try:
-    import cairo
-except Exception:
-    try:
-        # some environments expose cairo via gi.repository (rare); try as a last resort
-        from gi.repository import cairo as _gi_cairo
-        cairo = _gi_cairo
-    except Exception:
-        sys.stderr.write("Missing required Python 'cairo' module (pycairo).\n")
-        sys.stderr.write("Install on Debian/Ubuntu: sudo apt install python3-cairo python3-gi-cairo\n")
-        sys.stderr.write("Or install via pip: pip3 install pycairo\n")
-        raise
 try:
     from gi.repository import Gst
     Gst.init(None)
@@ -3336,7 +3335,16 @@ def main():
         return False
 
     GLib.timeout_add(200, checker)
-    Gtk.main()
+    try:
+        Gtk.main()
+    except TypeError as e:
+        msg = str(e)
+        if "Couldn't find foreign struct converter for" in msg or 'cairo.Context' in msg:
+            sys.stderr.write('\nFatal error: GTK cannot convert cairo.Context for draw callbacks.\n')
+            sys.stderr.write('This usually means the pycairo bindings are missing or were not imported before GTK\n')
+            sys.stderr.write('Please install pycairo (Debian/Ubuntu: sudo apt install python3-cairo python3-gi-cairo; or pip3 install pycairo)\n')
+            sys.stderr.write('Then restart the application.\n')
+        raise
 
 if __name__ == '__main__':
     main()
