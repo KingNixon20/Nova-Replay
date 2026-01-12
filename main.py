@@ -136,15 +136,15 @@ class NovaReplayWindow(Gtk.Window):
         .primary-button GtkLabel { color: #ffffff; }
         .primary-button.recording { background: #c0392b; }
         .recording { background: #c0392b; }
-        .sidebar { background: #000000; color: #cfd8e3; padding: 2px; min-width: 48px; }
-        .nav-button { background: transparent; color: #cfd8e3; border: none; padding: 0; margin: 2px; border-radius: 4px; min-width: 32px; min-height: 32px; }
+        .sidebar { background: #000000; color: #cfd8e3; padding: 2px; min-width: 0px; }
+        .nav-button { background: transparent; color: #cfd8e3; border: none; padding: 0; margin: 2px; border-radius: 4px; min-width: 0px; min-height: 0px; }
         .nav-button GtkImage { margin: 4px; }
         .nav-button GtkLabel { color: #05021b; }
         /* thin, unobtrusive divider between sidebar and content */
         .side-divider {
             /* Match the sidebar background so any seam is invisible */
             background: #000000;
-            min-width: 1px;
+            min-width: 0px;
             margin: 0;
             border-left: none;
             box-shadow: none;
@@ -173,12 +173,12 @@ class NovaReplayWindow(Gtk.Window):
         .icon-button:hover { background: rgba(255,255,255,0.06); border-radius: 4px; }
         .icon-button:active { background: rgba(255,255,255,0.10); }
         #exit-button GtkImage {
-            min-height: 20px;
-            min-width: 20px;
+            min-height: 0px;
+            min-width: 0px;
         }
         #min-button GtkImage {
-            min-height: 18px;
-            min-width: 18px;
+            min-height: 0px;
+            min-width: 0px;
         }
         """
         style_provider = Gtk.CssProvider()
@@ -188,7 +188,11 @@ class NovaReplayWindow(Gtk.Window):
         # Custom client-side header bar (CSD) — spans full window width
         top_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         try:
-            top_bar.set_size_request(-1, 36)
+            # avoid enforcing a minimum height so window can shrink fully
+            try:
+                top_bar.set_vexpand(False)
+            except Exception:
+                pass
         except Exception:
             pass
         top_bar.get_style_context().add_class('custom-header')
@@ -231,7 +235,10 @@ class NovaReplayWindow(Gtk.Window):
         exit_event.add(exit_img_widget)
         exit_event.set_tooltip_text('Close')
         try:
-            exit_event.set_size_request(28, 28)
+            try:
+                exit_event.set_size_request(-1, -1)
+            except Exception:
+                pass
             exit_event.set_halign(Gtk.Align.END)
             exit_event.set_margin_end(6)
         except Exception:
@@ -321,8 +328,11 @@ class NovaReplayWindow(Gtk.Window):
         min_event.add(min_img_widget)
         min_event.set_tooltip_text('Minimize')
         try:
-            # make minimize slightly smaller than the exit button
-            min_event.set_size_request(24, 24)
+            # do not enforce a fixed size so the window can shrink
+            try:
+                min_event.set_size_request(-1, -1)
+            except Exception:
+                pass
             min_event.set_halign(Gtk.Align.END)
             min_event.set_margin_end(4)
         except Exception:
@@ -488,7 +498,7 @@ class NovaReplayWindow(Gtk.Window):
 
         # Sidebar (smaller)
         sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        sidebar.set_size_request(48, -1)
+        # allow sidebar to shrink naturally with the window (animation still controls visual collapse)
         try:
             sidebar.set_hexpand(False)
             # prevent vertical expansion so width-only animation doesn't affect height
@@ -529,7 +539,10 @@ class NovaReplayWindow(Gtk.Window):
             btn_clips_img = Gtk.Image.new_from_icon_name('video-x-generic', Gtk.IconSize.MENU)
         btn_clips.add(btn_clips_img)
         btn_clips.set_tooltip_text('Clips')
-        btn_clips.set_size_request(48, 48)
+        try:
+            btn_clips.set_size_request(-1, -1)
+        except Exception:
+            pass
         btn_clips.set_relief(Gtk.ReliefStyle.NONE)
         try:
             btn_clips.set_hexpand(False)
@@ -555,7 +568,10 @@ class NovaReplayWindow(Gtk.Window):
             btn_editor_img = Gtk.Image.new_from_icon_name('applications-graphics', Gtk.IconSize.MENU)
         btn_editor.add(btn_editor_img)
         btn_editor.set_tooltip_text('Editor')
-        btn_editor.set_size_request(48, 48)
+        try:
+            btn_editor.set_size_request(-1, -1)
+        except Exception:
+            pass
         btn_editor.set_relief(Gtk.ReliefStyle.NONE)
         try:
             btn_editor.set_hexpand(False)
@@ -580,7 +596,10 @@ class NovaReplayWindow(Gtk.Window):
             btn_settings_img = Gtk.Image.new_from_icon_name('emblem-system', Gtk.IconSize.MENU)
         btn_settings.add(btn_settings_img)
         btn_settings.set_tooltip_text('Settings')
-        btn_settings.set_size_request(48, 48)
+        try:
+            btn_settings.set_size_request(-1, -1)
+        except Exception:
+            pass
         btn_settings.set_relief(Gtk.ReliefStyle.NONE)
         try:
             btn_settings.set_hexpand(False)
@@ -660,8 +679,10 @@ class NovaReplayWindow(Gtk.Window):
                 if (diff > 0 and new > tgt) or (diff < 0 and new < tgt):
                     new = tgt
                 try:
+                    # track current width target for internal state but do not enforce a size
+                    # so the pane can shrink without obstruction
                     self._sidebar_current_width = new
-                    self.sidebar.set_size_request(new, -1)
+                    # visual animation removed to avoid enforcing minimum window width
                 except Exception:
                     pass
                 return True
@@ -731,7 +752,10 @@ class NovaReplayWindow(Gtk.Window):
         # thin black divider between sidebar and content — wrap in an EventBox
         divider = Gtk.Box()
         try:
-            divider.set_size_request(1, -1)
+            try:
+                divider.set_size_request(-1, -1)
+            except Exception:
+                pass
             divider.get_style_context().add_class('side-divider')
         except Exception:
             pass
@@ -760,33 +784,98 @@ class NovaReplayWindow(Gtk.Window):
         bg_path = self.get_img_file('bg.png')
         self._bg_path = bg_path if os.path.exists(bg_path) else None
         self._bg_img = Gtk.Image()
+        try:
+            # ensure background image can't force the window minimum size
+            self._bg_img.set_size_request(1, 1)
+        except Exception:
+            pass
+        # Do not let the image expand and determine layout
+        try:
+            self._bg_img.set_hexpand(False)
+            self._bg_img.set_vexpand(False)
+        except Exception:
+            pass
+
         if self._bg_path:
-            # cache original pixbuf and add background as main child and stack content on top
+            # cache original pixbuf
             try:
                 self._bg_pixbuf_orig = GdkPixbuf.Pixbuf.new_from_file(self._bg_path)
             except Exception:
                 self._bg_pixbuf_orig = None
-            content_overlay.add(self._bg_img)
-            content_overlay.add_overlay(self.content_stack)
+
+            # put the background image in a Fixed so we can position it with negative offsets
+            # and allow it to overflow/clip when the window is smaller (purely decorative)
+            try:
+                self._bg_fixed = Gtk.Fixed()
+                try:
+                    self._bg_fixed.set_size_request(1, 1)
+                except Exception:
+                    pass
+                # add image into fixed at 0,0 initially
+                try:
+                    self._bg_fixed.put(self._bg_img, 0, 0)
+                except Exception:
+                    # older bindings may use add; fallback
+                    try:
+                        self._bg_fixed.add(self._bg_img)
+                    except Exception:
+                        pass
+            except Exception:
+                self._bg_fixed = None
+
+            # add fixed as the background child and stack content on top
+            try:
+                if self._bg_fixed:
+                    content_overlay.add(self._bg_fixed)
+                else:
+                    content_overlay.add(self._bg_img)
+                content_overlay.add_overlay(self.content_stack)
+            except Exception:
+                try:
+                    content_overlay.add(self._bg_img)
+                    content_overlay.add_overlay(self.content_stack)
+                except Exception:
+                    pass
 
             def on_overlay_alloc(w, allocation):
                 try:
-                    if self._bg_pixbuf_orig and allocation.width > 0:
-                        ow = self._bg_pixbuf_orig.get_width()
-                        oh = self._bg_pixbuf_orig.get_height()
-                        aw = allocation.width
-                        # scale to fit width, keep aspect ratio
-                        scale = float(aw) / float(ow) if ow else 1.0
-                        new_w = max(1, int(ow * scale))
-                        new_h = max(1, int(oh * scale))
-                        scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
-                        GLib.idle_add(self._bg_img.set_from_pixbuf, scaled)
-                        # keep image anchored to top
-                        try:
-                            self._bg_img.set_halign(Gtk.Align.CENTER)
-                            self._bg_img.set_valign(Gtk.Align.START)
-                        except Exception:
-                            pass
+                    if not self._bg_pixbuf_orig or allocation.width <= 0 or allocation.height <= 0:
+                        return False
+                    ow = self._bg_pixbuf_orig.get_width()
+                    oh = self._bg_pixbuf_orig.get_height()
+                    aw = allocation.width
+                    ah = allocation.height
+                    # COVER scaling: scale to cover the allocation and allow cropping
+                    try:
+                        scale = max(float(aw) / float(ow), float(ah) / float(oh)) if ow and oh else 1.0
+                    except Exception:
+                        scale = 1.0
+                    new_w = max(1, int(ow * scale))
+                    new_h = max(1, int(oh * scale))
+                    scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
+                    # update pixbuf on the main loop
+                    GLib.idle_add(self._bg_img.set_from_pixbuf, scaled)
+                    # center the image inside the allocation; allow negative offsets so it can be clipped
+                    try:
+                        x = int((aw - new_w) / 2)
+                        y = int((ah - new_h) / 2)
+                        if getattr(self, '_bg_fixed', None):
+                            try:
+                                self._bg_fixed.move(self._bg_img, x, y)
+                            except Exception:
+                                try:
+                                    self._bg_fixed.put(self._bg_img, x, y)
+                                except Exception:
+                                    pass
+                        else:
+                            # fallback: position via alignment when fixed not available
+                            try:
+                                self._bg_img.set_halign(Gtk.Align.CENTER)
+                                self._bg_img.set_valign(Gtk.Align.CENTER)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 
@@ -802,16 +891,41 @@ class NovaReplayWindow(Gtk.Window):
                     GLib.idle_add(self._bg_img.hide)
                     return False
                 allocation = self.content_overlay.get_allocation()
-                if allocation.width <= 0:
+                if allocation.width <= 0 or allocation.height <= 0:
                     return False
                 ow = self._bg_pixbuf_orig.get_width()
                 oh = self._bg_pixbuf_orig.get_height()
                 aw = allocation.width
-                scale = float(aw) / float(ow) if ow else 1.0
+                ah = allocation.height
+                # COVER scaling: ensure image covers the area and allow cropping
+                try:
+                    scale = max(float(aw) / float(ow), float(ah) / float(oh)) if ow and oh else 1.0
+                except Exception:
+                    scale = 1.0
                 new_w = max(1, int(ow * scale))
                 new_h = max(1, int(oh * scale))
                 scaled = self._bg_pixbuf_orig.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
                 GLib.idle_add(self._bg_img.set_from_pixbuf, scaled)
+                # center the image inside the allocation; allow parts to be clipped
+                try:
+                    x = int((aw - new_w) / 2)
+                    y = int((ah - new_h) / 2)
+                    if getattr(self, '_bg_fixed', None):
+                        try:
+                            self._bg_fixed.move(self._bg_img, x, y)
+                        except Exception:
+                            try:
+                                self._bg_fixed.put(self._bg_img, x, y)
+                            except Exception:
+                                pass
+                    else:
+                        try:
+                            self._bg_img.set_halign(Gtk.Align.CENTER)
+                            self._bg_img.set_valign(Gtk.Align.CENTER)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 try:
                     self._bg_img.show()
                 except Exception:
@@ -898,7 +1012,10 @@ class NovaReplayWindow(Gtk.Window):
                     self.record_img = Gtk.Image.new_from_icon_name('media-record', Gtk.IconSize.SMALL_TOOLBAR)
                 self.record_btn.add(self.record_img)
                 self.record_btn.set_tooltip_text('Record')
-                self.record_btn.set_size_request(40, 32)
+                try:
+                    self.record_btn.set_size_request(-1, -1)
+                except Exception:
+                    pass
                 try:
                     self.record_btn.set_relief(Gtk.ReliefStyle.NONE)
                 except Exception:
@@ -922,14 +1039,20 @@ class NovaReplayWindow(Gtk.Window):
                 else:
                     ref_img = Gtk.Image.new_from_icon_name('view-refresh', Gtk.IconSize.SMALL_TOOLBAR)
                 refresh_spinner = Gtk.Spinner()
-                refresh_spinner.set_size_request(18, 18)
+                try:
+                    refresh_spinner.set_size_request(-1, -1)
+                except Exception:
+                    pass
                 refresh_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
                 refresh_box.pack_start(ref_img, False, False, 0)
                 refresh_box.pack_start(refresh_spinner, False, False, 0)
                 refresh_spinner.hide()
                 refresh_btn.add(refresh_box)
                 refresh_btn.set_tooltip_text('Refresh Thumbnails')
-                refresh_btn.set_size_request(40, 32)
+                try:
+                    refresh_btn.set_size_request(-1, -1)
+                except Exception:
+                    pass
                 try:
                     refresh_btn.set_relief(Gtk.ReliefStyle.NONE)
                 except Exception:
@@ -1064,9 +1187,14 @@ class NovaReplayWindow(Gtk.Window):
                     desired_h = int(self.grid_rows * (tile_total + row_spacing) + padding - (self.grid_rows * per_row_shave))
                     if desired_h < 0:
                         desired_h = int(self.grid_rows * (tile_total + row_spacing) + padding)
-                    self.clip_scrolled.set_vexpand(False)
                     try:
-                        self.clip_scrolled.set_size_request(0, desired_h)
+                        # allow scroller to expand/contract naturally and be fully scrollable
+                        self.clip_scrolled.set_vexpand(True)
+                    except Exception:
+                        pass
+                    try:
+                        # do not force an explicit size request so the scroller does not limit window shrink
+                        self.clip_scrolled.set_size_request(-1, -1)
                     except Exception:
                         pass
                 except Exception:
@@ -1088,8 +1216,13 @@ class NovaReplayWindow(Gtk.Window):
 
         # Left: media list / project panel
         left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        # left panel default minimum width
-        left_panel.set_size_request(220, -1)
+        # allow the left panel to shrink and expand naturally
+        try:
+            left_panel.set_size_request(-1, -1)
+            left_panel.set_hexpand(False)
+            left_panel.set_vexpand(True)
+        except Exception:
+            pass
         left_panel.get_style_context().add_class('editor-list')
         lbl_media = Gtk.Label(label='Media')
         lbl_media.set_xalign(0)
@@ -1152,8 +1285,18 @@ class NovaReplayWindow(Gtk.Window):
         center_panel.get_style_context().add_class('video-preview')
         # preview container: use an Overlay so we can place a spinner above the video
         self.preview_container = Gtk.Overlay()
-        self.preview_container.set_size_request(640, 360)
+        try:
+            # avoid enforcing a minimum preview size that would lock aspect ratio
+            self.preview_container.set_size_request(-1, -1)
+        except Exception:
+            pass
         self.preview_container.get_style_context().add_class('preview-area')
+        # allow preview to expand to fill available space when window is larger
+        try:
+            self.preview_container.set_hexpand(True)
+            self.preview_container.set_vexpand(True)
+        except Exception:
+            pass
         # placeholder image widget for thumbnails when not playing
         self.preview_widget = Gtk.Image()
         self.preview_container.add(self.preview_widget)
@@ -1207,7 +1350,12 @@ class NovaReplayWindow(Gtk.Window):
 
         # Right: tools / properties
         right_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        right_panel.set_size_request(260, -1)
+        try:
+            right_panel.set_size_request(-1, -1)
+            right_panel.set_hexpand(False)
+            right_panel.set_vexpand(True)
+        except Exception:
+            pass
         tools_lbl = Gtk.Label(label='Tools')
         tools_lbl.get_style_context().add_class('dim-label')
         right_panel.pack_start(tools_lbl, False, False, 6)
@@ -1255,8 +1403,9 @@ class NovaReplayWindow(Gtk.Window):
         # horizontal paned: left panel resizable, right side contains center+right
         pan = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         try:
-            pan.pack1(left_panel, resize=True, shrink=False)
-            pan.pack2(center_right, resize=True, shrink=False)
+            # allow both children to shrink when the window is made smaller
+            pan.pack1(left_panel, resize=True, shrink=True)
+            pan.pack2(center_right, resize=True, shrink=True)
         except Exception:
             # older GTK versions use add1/add2
             try:
@@ -1938,7 +2087,11 @@ class NovaReplayWindow(Gtk.Window):
                 except Exception:
                     pass
                 # allow tile width to be flexible so the grid can shrink horizontally
-                tile_box.set_size_request(0, total_h)
+                try:
+                    # do not enforce a fixed tile size; allow it to shrink with the layout
+                    tile_box.set_size_request(-1, -1)
+                except Exception:
+                    pass
                 tile_box.set_hexpand(False)
                 tile_box.set_vexpand(False)
             except Exception:
@@ -1962,7 +2115,8 @@ class NovaReplayWindow(Gtk.Window):
                     # set the pixbuf so it covers the image area (img_h)
                     self._set_image_cover(img, normal_decor, target_w, img_h, overfill=12)
                     try:
-                        img.set_size_request(0, img_h)
+                        # do not enforce a fixed size that blocks shrink; allow natural scaling
+                        img.set_size_request(-1, -1)
                     except Exception:
                         pass
                 except Exception:
@@ -1974,7 +2128,7 @@ class NovaReplayWindow(Gtk.Window):
                 img = Gtk.Image.new_from_icon_name('video-x-generic', Gtk.IconSize.DIALOG)
                 try:
                     try:
-                        img.set_size_request(0, img_h)
+                        img.set_size_request(-1, -1)
                     except Exception:
                         pass
                 except Exception:
@@ -2007,7 +2161,8 @@ class NovaReplayWindow(Gtk.Window):
             # lower info area below the image (label + actions)
             lower_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             try:
-                lower_box.set_size_request(0, extra_h)
+                # avoid forcing lower area height; let content and scrolling dictate height
+                lower_box.set_size_request(-1, -1)
                 lower_box.get_style_context().add_class('tile-lower')
             except Exception:
                 pass
@@ -2061,7 +2216,10 @@ class NovaReplayWindow(Gtk.Window):
                 try:
                     play.set_relief(Gtk.ReliefStyle.NONE)
                     play.get_style_context().add_class('icon-button')
-                    play.set_size_request(28, 28)
+                    try:
+                        play.set_size_request(-1, -1)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 def _on_play_enter(w, ev, img=play_img):
@@ -2106,7 +2264,10 @@ class NovaReplayWindow(Gtk.Window):
                 try:
                     delb.set_relief(Gtk.ReliefStyle.NONE)
                     delb.get_style_context().add_class('icon-button')
-                    delb.set_size_request(28, 28)
+                    try:
+                        delb.set_size_request(-1, -1)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 def _on_del_enter(w, ev, img=del_img):
@@ -2148,7 +2309,10 @@ class NovaReplayWindow(Gtk.Window):
                 try:
                     folderb.set_relief(Gtk.ReliefStyle.NONE)
                     folderb.get_style_context().add_class('icon-button')
-                    folderb.set_size_request(28, 28)
+                    try:
+                        folderb.set_size_request(-1, -1)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 def _on_folder_enter(w, ev, img=folder_img):
@@ -2198,7 +2362,10 @@ class NovaReplayWindow(Gtk.Window):
                 try:
                     favb.set_relief(Gtk.ReliefStyle.NONE)
                     favb.get_style_context().add_class('icon-button')
-                    favb.set_size_request(28, 28)
+                    try:
+                        favb.set_size_request(-1, -1)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 # initialize fav state from persisted settings
