@@ -21,7 +21,7 @@
 
 ### Requirements 
 - Python 3.8+
-- System tools: `ffmpeg` (required), `xdg-utils` (for opening folders), optional `wf-recorder` (Wayland), optional `mpv` for better playback
+- System tools: `ffmpeg` (required), `xdg-utils` (for opening folders), optional `mpv` for better playback
 - Python deps: see `requirements.txt` (PyGObject, Pillow; `pynput` optional for global hotkeys)
 
 ### Quickstart (Linux Arch x86_64 Linux (non Wayland))
@@ -38,7 +38,7 @@ Then just double click to run!
 sudo apt update
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 ffmpeg xdg-utils mpv
 # optional for Wayland recording
-sudo apt install wf-recorder
+sudo apt install wf-recorder 
 ```
 
 2. Set up a virtualenv and install Python deps:

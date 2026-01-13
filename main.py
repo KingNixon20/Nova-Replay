@@ -1617,6 +1617,8 @@ class NovaReplayWindow(Gtk.Window):
         self.backend_combo = Gtk.ComboBoxText()
         self.backend_combo.append_text("ffmpeg (x11grab)")
         self.backend_combo.append_text("pipewire (ffmpeg)")
+        # In-process PipeWire capture via xdg-desktop-portal + GStreamer
+        self.backend_combo.append_text("pipewire (GStreamer portal)")
         self.backend_combo.append_text("wl-screenrec (wl-screenrec)")
         self.backend_combo.set_active(0)
         settings_box.pack_start(self.backend_combo, False, False, 0)
@@ -1944,12 +1946,18 @@ class NovaReplayWindow(Gtk.Window):
                     if pref == 'ffmpeg-x11':
                         self.backend_combo.set_active(0)
                     elif pref == 'pipewire':
-                        # pipewire at index 1
+                        # pipewire (ffmpeg) at index 1
                         self.backend_combo.set_active(1)
-                    elif pref == 'wl-screenrec':
-                        # wl-screenrec at index 2
+                    elif pref == 'pipewire-gst':
+                        # pipewire (GStreamer portal) at index 2
                         try:
                             self.backend_combo.set_active(2)
+                        except Exception:
+                            self.backend_combo.set_active(1)
+                    elif pref == 'wl-screenrec':
+                        # wl-screenrec at index 3 (after adding pipewire-gst)
+                        try:
+                            self.backend_combo.set_active(3)
                         except Exception:
                             self.backend_combo.set_active(0)
                     else:
@@ -2062,6 +2070,8 @@ class NovaReplayWindow(Gtk.Window):
             txt = self.backend_combo.get_active_text()
             if txt and 'ffmpeg' in txt and 'x11' in txt:
                 backend = 'ffmpeg-x11'
+            elif txt and 'pipewire' in txt and 'GStreamer' in txt:
+                backend = 'pipewire-gst'
             elif txt and 'pipewire' in txt:
                 backend = 'pipewire'
             elif txt and 'wl-screenrec' in txt:
@@ -2189,6 +2199,8 @@ class NovaReplayWindow(Gtk.Window):
             txt = self.backend_combo.get_active_text()
             if txt and 'ffmpeg' in txt and 'x11' in txt:
                 pref = 'ffmpeg-x11'
+            elif txt and 'pipewire' in txt and 'GStreamer' in txt:
+                pref = 'pipewire-gst'
             elif txt and 'pipewire' in txt:
                 pref = 'pipewire'
             elif txt and 'wl-screenrec' in txt:

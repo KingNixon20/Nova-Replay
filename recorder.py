@@ -7,6 +7,13 @@ import shutil
 import tempfile
 
 from typing import Optional, Callable
+# optional portal capture integration
+try:
+    from portal_capture import PortalCapture  # type: ignore
+    _HAVE_PORTAL_CAPTURE = True
+except Exception:
+    PortalCapture = None  # type: ignore
+    _HAVE_PORTAL_CAPTURE = False
 
 # Default recordings directory should be a writable user location.
 # When running from an AppImage the package is read-only, so avoid
@@ -56,6 +63,8 @@ class Recorder:
         self.on_error: Optional[Callable[[str], None]] = None
         # encoder / recording settings supplied by UI
         self.settings = settings or {}
+        # If using an in-process GStreamer portal capture, store the instance here
+        self._portal_capture = None
         # temporary file used by some backends (wf-recorder)
         self.tempfile: Optional[str] = None
         # last opened log file handle for subprocess output (so we can close it)
@@ -135,6 +144,96 @@ class Recorder:
             self._log_handle = logp
             self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=logp, stderr=logp)
             return
+
+        if backend == 'pipewire-gst':
+            # Try to use an in-process GStreamer-based portal capture (portal_capture.PortalCapture)
+            if not _HAVE_PORTAL_CAPTURE:
+                msg = ('portal_capture module not available; cannot use pipewire-gst backend.')
+                print(msg)
+                if callable(getattr(self, 'on_error', None)):
+                    try:
+                        self.on_error(msg)
+                    except Exception:
+                        pass
+                return
+            try:
+                pc = PortalCapture()
+            except Exception as e:
+                msg = (f'Failed to initialize PortalCapture: {e}')
+                print(msg)
+                if callable(getattr(self, 'on_error', None)):
+                    try:
+                        self.on_error(msg)
+                    except Exception:
+                        pass
+                return
+
+            # If the UI provided a pre-negotiated fd or node id, use it; otherwise attempt portal start
+            fd = None
+            node = None
+            try:
+                fd = (self.settings or {}).get('portal_fd')
+            except Exception:
+                fd = None
+            try:
+                node = (self.settings or {}).get('pipewire_node')
+            except Exception:
+                node = None
+            if fd:
+                try:
+                    pc.start(fd=int(fd))
+                    self._portal_capture = pc
+                    self.proc = None
+                    return
+                except Exception as e:
+                    msg = f'PortalCapture failed to start with fd: {e}'
+                    print(msg)
+                    if callable(getattr(self, 'on_error', None)):
+                        try:
+                            self.on_error(msg)
+                        except Exception:
+                            pass
+                    return
+            if node:
+                try:
+                    pc.start(node_id=int(node))
+                    self._portal_capture = pc
+                    self.proc = None
+                    return
+                except Exception as e:
+                    msg = f'PortalCapture failed to start with node id: {e}'
+                    print(msg)
+                    if callable(getattr(self, 'on_error', None)):
+                        try:
+                            self.on_error(msg)
+                        except Exception:
+                            pass
+                    return
+
+            # attempt portal-driven negotiation
+            try:
+                pc.start()
+                self._portal_capture = pc
+                self.proc = None
+                return
+            except NotImplementedError as nie:
+                msg = ("Portal negotiation not implemented in PortalCapture; cannot start pipewire-gst backend.")
+                print(msg)
+                if callable(getattr(self, 'on_error', None)):
+                    try:
+                        self.on_error(str(nie))
+                    except Exception:
+                        pass
+                return
+            except Exception as e:
+                msg = (f"PortalCapture failed to start: {e}")
+                print(msg)
+                if callable(getattr(self, 'on_error', None)):
+                    try:
+                        self.on_error(msg)
+                    except Exception:
+                        pass
+                return
 
         if backend == 'wf-recorder':
             # wf-recorder: record to a temp file under RECORDINGS_DIR, then transcode/move on stop
@@ -291,6 +390,24 @@ class Recorder:
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=logp, stderr=logp)
 
     def stop(self):
+        # If an in-process PortalCapture pipeline is active, stop it first
+        try:
+            if getattr(self, '_portal_capture', None) is not None:
+                try:
+                    self._portal_capture.stop()
+                except Exception:
+                    pass
+                self._portal_capture = None
+                # Notify listener that recording stopped; portal pipeline may not produce a file
+                if self.on_stop:
+                    try:
+                        self.on_stop(self.outfile)
+                    except Exception:
+                        pass
+                return
+        except Exception:
+            pass
+
         if not self.proc:
             return
         proc = self.proc
