@@ -21,6 +21,7 @@ from gi.repository import Gio, Gst, GLib
 import typing
 import logging
 import os
+import re
 
 # Initialize basic logging if not configured by the application
 if not logging.getLogger().handlers:
@@ -220,6 +221,14 @@ class PortalCapture:
 
         # Helper: call a portal method and if it returns a request object path,
         # wait for the Request.Response signal to obtain the async reply.
+        class PortalNegotiationError(RuntimeError):
+            pass
+
+        def _is_valid_object_path(p: str) -> bool:
+            # Basic validation for DBus object path
+            return bool(re.match(r'^(/[_A-Za-z0-9]+)+$', p))
+
+
         def _call_method_and_wait(method: str, param_opts: typing.Optional[typing.Union[dict, tuple]]) -> typing.Tuple[int, typing.Optional[GLib.Variant]]:
             """Call `method` on the portal proxy with `param_variant` and wait for Response.
 
@@ -246,24 +255,16 @@ class PortalCapture:
                     # generic re-raise for other errors
                     raise
 
-            # Build candidate parameter forms to try (prefer the canonical '(a{sv})' tuple)
+            # Build only the canonical parameter form. Trying many shapes triggered instability
+            # in some portal backends; be conservative and only send (a{sv}).
             candidates = []
             try:
                 if isinstance(param_opts, dict):
                     candidates.append(GLib.Variant('(a{sv})', (param_opts,)))
-                    candidates.append(GLib.Variant('(a{sv})', ({},)))
-                elif isinstance(param_opts, tuple) and len(param_opts) == 2 and isinstance(param_opts[0], str) and isinstance(param_opts[1], dict):
-                    try:
-                        candidates.append(GLib.Variant('(o a{sv})', (param_opts[0], param_opts[1])))
-                    except Exception:
-                        pass
-                    candidates.append(GLib.Variant('(a{sv})', (param_opts[1],)))
-                    candidates.append(GLib.Variant('(a{sv})', ({},)))
                 else:
-                    # Default: empty options dict wrapped in the expected tuple
                     candidates.append(GLib.Variant('(a{sv})', ({},)))
-            except Exception:
-                # if any construction fails, fall back to passing None (some portals accept zero-arg calls)
+            except Exception as e:
+                logger.debug('Failed to build canonical parameter variant: %s', e)
                 candidates.append(None)
 
             res = None
@@ -292,9 +293,16 @@ class PortalCapture:
                     except Exception:
                         unpacked = None
                     if isinstance(unpacked, tuple) and len(unpacked) > 0 and isinstance(unpacked[0], str) and unpacked[0].startswith('/'):
-                        req_path = unpacked[0]
+                        candidate = unpacked[0]
+                        if _is_valid_object_path(candidate):
+                            req_path = candidate
+                        else:
+                            logger.debug('Portal returned object path-like string that is not a valid object path: %r', candidate)
                 elif isinstance(res, str) and res.startswith('/'):
-                    req_path = res
+                    if _is_valid_object_path(res):
+                        req_path = res
+                    else:
+                        logger.debug('Portal returned string that is not a valid object path: %r', res)
             except Exception:
                 req_path = None
 
@@ -310,8 +318,21 @@ class PortalCapture:
 
             # Create a proxy for the request object to listen for the Response signal
             logger.debug('Portal method %s returned request path %s; creating Request proxy', method, req_path)
+            if not req_path:
+                # No valid request path returned; treat as no-async and return direct results
+                try:
+                    if isinstance(res, GLib.Variant):
+                        return (0, res)
+                except Exception:
+                    pass
+                return (0, None)
+
             conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-            request_proxy = Gio.DBusProxy.new_sync(conn, Gio.DBusProxyFlags.NONE, None, "org.freedesktop.portal.Desktop", req_path, "org.freedesktop.portal.Request", None)
+            try:
+                request_proxy = Gio.DBusProxy.new_sync(conn, Gio.DBusProxyFlags.NONE, None, "org.freedesktop.portal.Desktop", req_path, "org.freedesktop.portal.Request", None)
+            except Exception as e:
+                logger.exception('Failed to create Request proxy for path %s: %s', req_path, e)
+                raise PortalNegotiationError('Portal returned an invalid Request path or the portal backend crashed while creating the Request proxy')
 
             loop = GLib.MainLoop()
             result_container = {'code': None, 'results': None}
