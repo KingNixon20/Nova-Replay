@@ -1,5 +1,6 @@
 # Nova Replay
 
+
 <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
 	<img src="githubassets/Screenshot_20260112_150145.png" alt="Thumbnails" style="width:32%;border-radius:6px;border:1px solid #ddd;margin-top:12px" />
 	<img src="githubassets/Screenshot_20260112_150157.png" alt="Settings" style="width:32%;border-radius:6px;border:1px solid #ddd;margin-top:12px" />
