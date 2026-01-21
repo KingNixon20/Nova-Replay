@@ -1621,6 +1621,10 @@ class NovaReplayWindow(Gtk.Window):
         self.backend_combo.append_text("pipewire (GStreamer portal)")
         self.backend_combo.append_text("wl-screenrec (wl-screenrec)")
         self.backend_combo.set_active(0)
+        try:
+            self.backend_combo.set_tooltip_text('Select the recording backend. Choose ffmpeg for X11, pipewire for Wayland/pipewire, or wl-screenrec for wl-screenrec.')
+        except Exception:
+            pass
         settings_box.pack_start(self.backend_combo, False, False, 0)
 
         # Optional: Wayland output name for wl-screenrec (compositor output id)
@@ -1636,6 +1640,10 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         settings_box.pack_start(self.wl_output_entry, False, False, 0)
+        try:
+            self.wl_output_entry.set_tooltip_text('Optional Wayland output name for wl-screenrec (compositor output id). Leave empty for automatic selection.')
+        except Exception:
+            pass
 
         # Hotkey entry (informational)
         hotkey_label = Gtk.Label(label="Toggle recording hotkey:")
@@ -1643,6 +1651,10 @@ class NovaReplayWindow(Gtk.Window):
         settings_box.pack_start(hotkey_label, False, False, 0)
         self.hotkey_entry = Gtk.Entry()
         self.hotkey_entry.set_text("Ctrl+Alt+R")
+        try:
+            self.hotkey_entry.set_tooltip_text('Hotkey used to toggle recording. Edit in settings but actual global registration may be best-effort.')
+        except Exception:
+            pass
         settings_box.pack_start(self.hotkey_entry, False, False, 0)
 
         # Opacity slider
@@ -1652,6 +1664,10 @@ class NovaReplayWindow(Gtk.Window):
         opacity_slider = Gtk.HScale.new_with_range(0.1, 1.0, 0.1)
         opacity_slider.set_value(1.0)
         opacity_slider.connect("value-changed", self.on_opacity_changed)
+        try:
+            opacity_slider.set_tooltip_text('Adjust the application window transparency for an unobtrusive overlay.')
+        except Exception:
+            pass
         settings_box.pack_start(opacity_slider, False, False, 0)
 
         # Background selector
@@ -1712,6 +1728,10 @@ class NovaReplayWindow(Gtk.Window):
                 pass
 
         self.bg_combo.connect('changed', _on_bg_changed)
+        try:
+            self.bg_combo.set_tooltip_text('Choose the background image for the app UI.')
+        except Exception:
+            pass
         bg_row.pack_start(self.bg_combo, False, False, 0)
         settings_box.pack_start(bg_row, False, False, 6)
 
@@ -1737,6 +1757,10 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         row1.pack_start(self.video_codec_combo, False, False, 0)
+        try:
+            self.video_codec_combo.set_tooltip_text('Select the video codec to use for recording.')
+        except Exception:
+            pass
 
         cont_lbl = Gtk.Label(label='Container:')
         cont_lbl.set_xalign(0)
@@ -1750,6 +1774,10 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         row1.pack_start(self.container_combo, False, False, 0)
+        try:
+            self.container_combo.set_tooltip_text('Choose the container/format for recorded files (mp4, mkv, webm).')
+        except Exception:
+            pass
         enc_box.pack_start(row1, False, False, 0)
 
         row2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -1765,6 +1793,10 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         row2.pack_start(self.preset_combo, False, False, 0)
+        try:
+            self.preset_combo.set_tooltip_text('Encoding preset affecting speed vs quality. Faster presets reduce CPU cost.')
+        except Exception:
+            pass
 
         crf_lbl = Gtk.Label(label='CRF:')
         crf_lbl.set_xalign(0)
@@ -1772,6 +1804,10 @@ class NovaReplayWindow(Gtk.Window):
         adj_crf = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('crf', 23), lower=0, upper=51, step_increment=1, page_increment=5, page_size=0)
         self.crf_spin = Gtk.SpinButton.new(adj_crf, 1, 0)
         row2.pack_start(self.crf_spin, False, False, 0)
+        try:
+            self.crf_spin.set_tooltip_text('Constant Rate Factor for quality (lower=better quality/larger file).')
+        except Exception:
+            pass
         enc_box.pack_start(row2, False, False, 0)
 
         row3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -1781,6 +1817,10 @@ class NovaReplayWindow(Gtk.Window):
         adj_br = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('bitrate_kbps', 4000), lower=0, upper=20000, step_increment=100, page_increment=500, page_size=0)
         self.bitrate_spin = Gtk.SpinButton.new(adj_br, 100, 0)
         row3.pack_start(self.bitrate_spin, False, False, 0)
+        try:
+            self.bitrate_spin.set_tooltip_text('Target video bitrate in kbps (used for bitrate-based encoding).')
+        except Exception:
+            pass
 
         fps_lbl = Gtk.Label(label='FPS:')
         fps_lbl.set_xalign(0)
@@ -1788,6 +1828,10 @@ class NovaReplayWindow(Gtk.Window):
         adj_fps = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('fps', 60), lower=1, upper=240, step_increment=1, page_increment=5, page_size=0)
         self.fps_spin = Gtk.SpinButton.new(adj_fps, 1, 0)
         row3.pack_start(self.fps_spin, False, False, 0)
+        try:
+            self.fps_spin.set_tooltip_text('Set the frames-per-second capture rate for recordings.')
+        except Exception:
+            pass
         enc_box.pack_start(row3, False, False, 0)
 
         # Audio options
@@ -1804,6 +1848,10 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         row4.pack_start(self.audio_codec_combo, False, False, 0)
+        try:
+            self.audio_codec_combo.set_tooltip_text('Choose the audio codec for recording (AAC, Opus, MP3).')
+        except Exception:
+            pass
 
         ab_lbl = Gtk.Label(label='Audio kbps:')
         ab_lbl.set_xalign(0)
@@ -1811,6 +1859,10 @@ class NovaReplayWindow(Gtk.Window):
         adj_ab = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('audio_bitrate_kbps', 128), lower=16, upper=512, step_increment=16, page_increment=64, page_size=0)
         self.audio_bitrate_spin = Gtk.SpinButton.new(adj_ab, 1, 0)
         row4.pack_start(self.audio_bitrate_spin, False, False, 0)
+        try:
+            self.audio_bitrate_spin.set_tooltip_text('Audio bitrate in kbps.')
+        except Exception:
+            pass
         enc_box.pack_start(row4, False, False, 0)
 
         # Threads / hwaccel
@@ -1821,6 +1873,10 @@ class NovaReplayWindow(Gtk.Window):
         adj_th = Gtk.Adjustment(value=self.settings.get('encoder', {}).get('threads', 0), lower=0, upper=64, step_increment=1, page_increment=2, page_size=0)
         self.threads_spin = Gtk.SpinButton.new(adj_th, 1, 0)
         row5.pack_start(self.threads_spin, False, False, 0)
+        try:
+            self.threads_spin.set_tooltip_text('Number of encoder threads to use (0 = auto).')
+        except Exception:
+            pass
 
         hw_lbl = Gtk.Label(label='HW accel:')
         hw_lbl.set_xalign(0)
@@ -1834,6 +1890,10 @@ class NovaReplayWindow(Gtk.Window):
         except Exception:
             pass
         row5.pack_start(self.hwaccel_combo, False, False, 0)
+        try:
+            self.hwaccel_combo.set_tooltip_text('Hardware acceleration method (vaapi, nvenc, qsv) or none.')
+        except Exception:
+            pass
         enc_box.pack_start(row5, False, False, 0)
 
         enc_frame.add(enc_box)
@@ -1848,6 +1908,10 @@ class NovaReplayWindow(Gtk.Window):
         self.out_entry = Gtk.Entry()
         self.out_entry.set_text(recorder.RECORDINGS_DIR)
         self.out_entry.set_editable(False)
+        try:
+            self.out_entry.set_tooltip_text('Current recordings folder.')
+        except Exception:
+            pass
         out_box.pack_start(self.out_entry, True, True, 0)
 
         open_out = Gtk.Button(label="Open")
@@ -1858,6 +1922,10 @@ class NovaReplayWindow(Gtk.Window):
             else:
                 self._alert("Recordings folder not found")
         open_out.connect('clicked', open_dir)
+        try:
+            open_out.set_tooltip_text('Open the recordings folder in your file manager.')
+        except Exception:
+            pass
         out_box.pack_start(open_out, False, False, 0)
 
         change_btn = Gtk.Button(label="Change...")
@@ -1883,15 +1951,165 @@ class NovaReplayWindow(Gtk.Window):
                     self._alert(f"Failed to set recordings folder: {e}")
             dlg.destroy()
         change_btn.connect('clicked', change_dir)
+        try:
+            change_btn.set_tooltip_text('Change the recordings folder location.')
+        except Exception:
+            pass
         out_box.pack_start(change_btn, False, False, 0)
         settings_box.pack_start(out_box, False, False, 0)
+
+        # Game auto-detection settings
+        game_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        game_lbl = Gtk.Label(label='Game detection:')
+        game_lbl.set_xalign(0)
+        game_row.pack_start(game_lbl, False, False, 0)
+        self.game_detect_check = Gtk.CheckButton(label='Automatically start recording when a Steam or Wine game starts')
+        try:
+            enabled = self.settings.get('game_detection') if getattr(self, 'settings', None) is not None else True
+            self.game_detect_check.set_active(bool(enabled))
+        except Exception:
+            pass
+        game_row.pack_start(self.game_detect_check, False, False, 0)
+        try:
+            self.game_detect_check.set_tooltip_text('When enabled, Nova Replay will automatically start recording when matching game processes are detected.')
+        except Exception:
+            pass
+
+        # Manual process picker + list
+        picker_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.process_combo = Gtk.ComboBoxText()
+        picker_row.pack_start(self.process_combo, True, True, 0)
+        try:
+            self.process_combo.set_tooltip_text('Dropdown of running process names to pick for manual monitoring.')
+        except Exception:
+            pass
+        self.proc_label_entry = Gtk.Entry()
+        self.proc_label_entry.set_placeholder_text('Label (optional)')
+        picker_row.pack_start(self.proc_label_entry, False, False, 0)
+        try:
+            self.proc_label_entry.set_tooltip_text('Optional label for the manual process entry (shown in the list).')
+        except Exception:
+            pass
+        add_proc_btn = Gtk.Button(label='Add')
+        picker_row.pack_start(add_proc_btn, False, False, 0)
+        try:
+            add_proc_btn.set_tooltip_text('Add the selected process to the manual monitoring list.')
+        except Exception:
+            pass
+
+        settings_box.pack_start(game_row, False, False, 0)
+        settings_box.pack_start(picker_row, False, False, 0)
+
+        # Manual list of processes
+        self.manual_store = Gtk.ListStore(str, str)  # label, proc
+        self.manual_view = Gtk.TreeView(model=self.manual_store)
+        for i, title in enumerate(('Label','Process')):
+            renderer = Gtk.CellRendererText()
+            col = Gtk.TreeViewColumn(title, renderer, text=i)
+            self.manual_view.append_column(col)
+        manual_scroller = Gtk.ScrolledWindow()
+        manual_scroller.set_size_request(-1, 120)
+        manual_scroller.add(self.manual_view)
+        settings_box.pack_start(manual_scroller, False, False, 0)
+        try:
+            manual_scroller.set_tooltip_text('List of manually configured processes monitored for auto-start recording.')
+        except Exception:
+            pass
+
+        remove_btn = Gtk.Button(label='Remove Selected')
+        settings_box.pack_start(remove_btn, False, False, 0)
+        try:
+            remove_btn.set_tooltip_text('Remove the selected manual process entry.')
+        except Exception:
+            pass
+
+        def _populate_process_combo():
+            try:
+                self.process_combo.remove_all()
+                out = subprocess.check_output(['ps','-eo','comm'], text=True)
+                names = set()
+                for line in out.splitlines()[1:]:
+                    nm = line.strip()
+                    if nm and nm not in names:
+                        names.add(nm)
+                        self.process_combo.append_text(nm)
+                try:
+                    self.process_combo.set_active(0)
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        def _add_manual(_):
+            try:
+                proc = self.process_combo.get_active_text() if getattr(self, 'process_combo', None) else None
+                label = self.proc_label_entry.get_text() if getattr(self, 'proc_label_entry', None) else ''
+                if not proc:
+                    return
+                self.manual_store.append([label or proc, proc])
+                # persist
+                try:
+                    if not getattr(self, 'settings', None):
+                        self.settings = {}
+                    lst = self.settings.get('manual_games', [])
+                    lst.append({'label': label or proc, 'proc': proc})
+                    self.settings['manual_games'] = lst
+                    self.save_settings()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        def _remove_selected(_):
+            try:
+                sel = self.manual_view.get_selection()
+                model, it = sel.get_selected()
+                if it:
+                    proc = model.get_value(it,1)
+                    label = model.get_value(it,0)
+                    model.remove(it)
+                    try:
+                        lst = self.settings.get('manual_games', [])
+                        lst = [x for x in lst if not (x.get('proc')==proc and x.get('label')==label)]
+                        self.settings['manual_games'] = lst
+                        self.save_settings()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        add_proc_btn.connect('clicked', _add_manual)
+        remove_btn.connect('clicked', _remove_selected)
+        # initial populate
+        _populate_process_combo()
+        # populate manual_store from settings
+        try:
+            for it in self.settings.get('manual_games', []):
+                self.manual_store.append([it.get('label', it.get('proc')), it.get('proc')])
+        except Exception:
+            pass
 
         # Apply/save (session-only)
         apply_btn = Gtk.Button(label="Apply")
         apply_btn.connect('clicked', lambda w: (self.save_settings(), self._alert("Settings saved")))
         settings_box.pack_end(apply_btn, False, False, 6)
 
-        self.content_stack.add_titled(settings_box, 'settings', 'Settings')
+        # Make settings scrollable so users can access all controls on smaller windows
+        settings_scroller = Gtk.ScrolledWindow()
+        settings_scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        try:
+            settings_scroller.set_shadow_type(Gtk.ShadowType.IN)
+        except Exception:
+            pass
+        try:
+            # Use a viewport to ensure Box packs correctly inside the scrolled window
+            settings_scroller.add_with_viewport(settings_box)
+        except Exception:
+            try:
+                settings_scroller.add(settings_box)
+            except Exception:
+                pass
+        self.content_stack.add_titled(settings_scroller, 'settings', 'Settings')
 
         # Record view placeholder
         rec_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -1982,6 +2200,11 @@ class NovaReplayWindow(Gtk.Window):
         # Optional global hotkey manager (best-effort)
         self.hotkeys = HotkeyManager(self.toggle_recording)
         self.hotkeys.start()
+        # start background process watcher for game auto-detection
+        try:
+            self._start_process_watcher()
+        except Exception:
+            pass
         # mark that initialization finished (used by splash logic)
         try:
             self._loaded = True
@@ -2057,6 +2280,10 @@ class NovaReplayWindow(Gtk.Window):
         })
         # optional wl-screenrec output name (compositor output id)
         settings['wl_output'] = settings.get('wl_output', '')
+        # Game detection: enable auto-start when Steam/Wine or manual entries detected
+        settings['game_detection'] = settings.get('game_detection', True)
+        # Manual games: list of {label, proc} entries
+        settings['manual_games'] = settings.get('manual_games', [])
         self.settings = settings
 
     def save_settings(self):
@@ -2117,6 +2344,8 @@ class NovaReplayWindow(Gtk.Window):
             'encoder': enc,
             'bg_choice': self.settings.get('bg_choice', 'bg.png'),
             'wl_output': getattr(self, 'wl_output_entry', None).get_text() if getattr(self, 'wl_output_entry', None) else self.settings.get('wl_output', ''),
+            'game_detection': bool(getattr(self, 'game_detect_check', None).get_active() if getattr(self, 'game_detect_check', None) else self.settings.get('game_detection', True)),
+            'manual_games': self.settings.get('manual_games', []),
         }
         try:
             with open(self.get_config_path(), 'w') as f:
@@ -2124,6 +2353,88 @@ class NovaReplayWindow(Gtk.Window):
             self.settings = cfg
         except Exception as e:
             raise
+
+    # --- Process detection and auto-start logic ---
+    def _get_process_list(self):
+        """Return list of process dicts: {'pid','ppid','comm','args'}"""
+        procs = []
+        try:
+            out = subprocess.check_output(['ps','-eo','pid,ppid,comm,args'], text=True, errors='ignore')
+            lines = out.splitlines()
+            for line in lines[1:]:
+                try:
+                    parts = line.strip().split(None, 3)
+                    if len(parts) >= 3:
+                        pid = parts[0]
+                        ppid = parts[1]
+                        comm = parts[2]
+                        args = parts[3] if len(parts) > 3 else ''
+                        procs.append({'pid': pid, 'ppid': ppid, 'comm': comm, 'args': args})
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return procs
+
+    def _process_watcher_tick(self):
+        try:
+            enabled = bool(getattr(self, 'game_detect_check', None).get_active() if getattr(self, 'game_detect_check', None) else self.settings.get('game_detection', True))
+            if not enabled:
+                return True
+            procs = self._get_process_list()
+            # build mapping pid->comm for parent checks
+            pid_map = {p['pid']: p['comm'] for p in procs}
+            # check wine-like processes
+            for p in procs:
+                comm = (p.get('comm') or '').lower()
+                args = (p.get('args') or '').lower()
+                if any(x in comm for x in ('wine','wine64','wine-preloader')) or 'proton' in args or '.wine' in args:
+                    # start recording
+                    if not (self.recorder and getattr(self.recorder, 'proc', None)):
+                        GLib.idle_add(self._alert, f"Detected Wine process '{p.get('comm')}', starting recording")
+                        GLib.idle_add(self.on_start, None)
+                        return True
+            # check steam-launched games heuristics: parent is steam or args reference steamapps
+            for p in procs:
+                comm = (p.get('comm') or '').lower()
+                args = (p.get('args') or '').lower()
+                ppid = p.get('ppid')
+                parent = pid_map.get(ppid, '').lower()
+                if 'steam' in parent or 'steam' in comm or 'steamapps' in args or 'steam/steamapps' in args or 'steam://run' in args:
+                    if not (self.recorder and getattr(self.recorder, 'proc', None)):
+                        GLib.idle_add(self._alert, f"Detected Steam-launched process '{p.get('comm')}', starting recording")
+                        GLib.idle_add(self.on_start, None)
+                        return True
+            # manual entries
+            try:
+                manual = self.settings.get('manual_games', []) if getattr(self, 'settings', None) else []
+                for entry in manual:
+                    target = (entry.get('proc') or '').lower()
+                    if not target:
+                        continue
+                    for p in procs:
+                        if target == (p.get('comm') or '').lower() or target in (p.get('args') or '').lower():
+                            if not (self.recorder and getattr(self.recorder, 'proc', None)):
+                                GLib.idle_add(self._alert, f"Detected configured process '{entry.get('label') or entry.get('proc')}', starting recording")
+                                GLib.idle_add(self.on_start, None)
+                                return True
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return True
+
+    def _start_process_watcher(self):
+        try:
+            # run every 2 seconds
+            if getattr(self, '_process_watcher_id', None):
+                try:
+                    GLib.source_remove(self._process_watcher_id)
+                except Exception:
+                    pass
+            self._process_watcher_id = GLib.timeout_add_seconds(2, self._process_watcher_tick)
+        except Exception:
+            pass
 
     def toggle_recording(self):
         # Called from hotkey thread — ensure GUI actions run in the main loop
