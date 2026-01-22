@@ -25,7 +25,7 @@
 - System tools: `ffmpeg` (required), `xdg-utils` (for opening folders), optional `mpv` for better playback
 - Python deps: see `requirements.txt` (PyGObject, Pillow; `pynput` optional for global hotkeys)
 
-### Quickstart (Linux Arch x86_64 Linux (non Wayland))
+### Quickstart (Linux Arch x86_64 Linux)
 
 Head to Releases and download the latest appimage
 Make sure the Nova_Replay-x86_64.AppImage can execute as a program
