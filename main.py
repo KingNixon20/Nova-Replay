@@ -29,6 +29,15 @@ try:
     Gst.init(None)
 except Exception:
     Gst = None
+try:
+    from gi.repository import Notify
+    try:
+        Notify.init("Nova Replay")
+    except Exception:
+        # some environments initialize differently; ignore if it fails
+        pass
+except Exception:
+    Notify = None
 import time
 import recorder
 import json
@@ -118,66 +127,152 @@ class HotkeyManager:
 
 
 class Timeline(Gtk.DrawingArea):
-    """Lightweight timeline rail showing clips proportionally by duration.
+    """Unified timeline with trim handles and playhead.
 
-    This is a simple, non-editing timeline used for quick split/seek UX.
-    It accepts a list of items: [{'filename':..., 'duration': float, 'label':...}, ...]
-    and draws colored rectangles. Click to set a position (callback receives seconds).
+    - Supports set_range(min_sec, max_sec) and set_value(sec) for compatibility
+    - `on_seek(sec)` callback for seek requests
+    - `on_changed(start,end)` callback when trim handles are changed
     """
     def __init__(self):
         super().__init__()
         self.items = []
-        self.total = 0.0
         self.project_start = 0.0
+        self.total = 1.0
         self.set_size_request(-1, 64)
         self.connect('draw', self._on_draw)
         self.connect('button-press-event', self._on_press)
         self.connect('button-release-event', self._on_release)
         self.connect('motion-notify-event', self._on_motion)
         self.set_events(self.get_events() | Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.POINTER_MOTION_MASK)
+
+        # playhead (seconds)
+        self.playhead = 0.0
+        # trim handles (seconds)
+        self.trim_start = 0.0
+        self.trim_end = 0.0
+
+        # callbacks
         self.on_seek = None
         self.on_changed = None
-        self.on_select = None
+
         # drag state
         self._dragging = False
-        # snapping grid in seconds
-        self._snap = 0.1
-        self._drag_idx = None
-        self._drag_type = None
+        self._drag_type = None  # 'left', 'right', 'playhead', None
         self._drag_start_x = 0
-        self._orig_start = 0.0
-        self._orig_duration = 0.0
+        self._block_callbacks = set()
+
+        # visual params
+        self._pad = 6
+        self._handle_w = 10
+        self._playhead_w = 2
 
     def set_items(self, items):
-        # items: list of {'filename','duration','label'}
         self.items = list(items or [])
-        self.total = 0.0
-        # items expected to have 'start' and 'duration'
-        min_start = None
-        max_end = None
-        for it in self.items:
-            try:
-                d = float(it.get('duration', 0) or 0)
-            except Exception:
-                d = 0.0
-            s = float(it.get('start', 0) or 0)
-            end = s + max(0.0, d)
-            if min_start is None or s < min_start:
-                min_start = s
-            if max_end is None or end > max_end:
-                max_end = end
-        if min_start is None:
-            min_start = 0.0
-        if max_end is None:
-            max_end = min_start
-        self.project_start = min_start
-        self.total = max_end - min_start
+        # compute project range if items provided
+        if self.items:
+            min_start = None
+            max_end = None
+            for it in self.items:
+                try:
+                    d = float(it.get('duration', 0) or 0)
+                except Exception:
+                    d = 0.0
+                s = float(it.get('start', 0) or 0)
+                end = s + max(0.0, d)
+                if min_start is None or s < min_start:
+                    min_start = s
+                if max_end is None or end > max_end:
+                    max_end = end
+            self.project_start = min_start or 0.0
+            self.total = max(1.0, (max_end or 0.0) - self.project_start)
         self.queue_draw()
 
-    def _on_click(self, widget, event):
-        # legacy: not used
-        return False
+    # Compatibility methods used elsewhere in the app
+    def set_range(self, a, b):
+        try:
+            self.project_start = float(a)
+            self.total = max(1.0, float(b) - float(a))
+            # clamp trims and playhead
+            if self.trim_start < self.project_start:
+                self.trim_start = self.project_start
+            if self.trim_end <= self.project_start:
+                self.trim_end = self.project_start + self.total
+            if self.playhead < self.project_start or self.playhead > self.project_start + self.total:
+                self.playhead = self.project_start
+        except Exception:
+            pass
+        self.queue_draw()
 
+    def set_value(self, sec):
+        try:
+            self.playhead = float(sec)
+        except Exception:
+            self.playhead = self.project_start
+        self.queue_draw()
+
+    def set_value_silent(self, sec):
+        """Set playhead without forcing a redraw every call. Will redraw at most
+        once every 250ms to keep UI responsive without flooding the main loop."""
+        try:
+            self.playhead = float(sec)
+        except Exception:
+            self.playhead = self.project_start
+        try:
+            now = time.time()
+            last = getattr(self, '_last_draw', 0)
+            if now - last > 0.25:
+                self.queue_draw()
+                self._last_draw = now
+        except Exception:
+            pass
+
+    def get_trim(self):
+        return (self.trim_start, self.trim_end)
+
+    def set_trim(self, s, e):
+        try:
+            s = float(s)
+            e = float(e)
+            if s < self.project_start:
+                s = self.project_start
+            if e > self.project_start + self.total:
+                e = self.project_start + self.total
+            if e < s:
+                e = s
+            self.trim_start = s
+            self.trim_end = e
+            if self.on_changed and 'on_changed' not in self._block_callbacks:
+                try:
+                    self.on_changed(s, e)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        self.queue_draw()
+
+    def handler_block_by_func(self, func):
+        # emulate Gtk.Range handler blocking used elsewhere; accept functions loosely
+        try:
+            name = getattr(func, '__name__', str(func))
+            self._block_callbacks.add(name)
+        except Exception:
+            pass
+
+    def handler_unblock_by_func(self, func):
+        try:
+            name = getattr(func, '__name__', str(func))
+            if name in self._block_callbacks:
+                self._block_callbacks.remove(name)
+        except Exception:
+            pass
+
+    def _sec_to_x(self, sec, w):
+        if self.total <= 0:
+            return 0
+        return int(((sec - self.project_start) / self.total) * w)
+
+    def _x_to_sec(self, x, w):
+        return (x / float(w)) * self.total + self.project_start if w > 0 else self.project_start
 
     def _on_draw(self, widget, cr):
         alloc = self.get_allocation()
@@ -186,43 +281,143 @@ class Timeline(Gtk.DrawingArea):
         cr.set_source_rgb(0.06, 0.06, 0.06)
         cr.rectangle(0, 0, w, h)
         cr.fill()
-        if not self.items or self.total <= 0:
-            return False
-        pad = 6
-        for i, it in enumerate(self.items):
-            s = float(it.get('start', 0) or 0)
-            dur = float(it.get('duration', 0) or 0)
-            if dur <= 0:
-                continue
-            rel_start = (s - self.project_start) / self.total if self.total > 0 else 0
-            rel_end = ((s + dur) - self.project_start) / self.total if self.total > 0 else rel_start
-            x1 = int(rel_start * w)
-            x2 = int(rel_end * w)
-            width = max(4, x2 - x1)
-            # color variant
-            base = 0.12 + ((i % 4) * 0.04)
-            cr.set_source_rgb(base, 0.18, 0.22)
-            cr.rectangle(x1 + 1, pad, width - 2, h - (pad * 2))
+
+        pad = self._pad
+        track_h = h - pad * 2
+
+        # draw full track
+        cr.set_source_rgb(0.12, 0.12, 0.12)
+        cr.rectangle(pad, pad, max(4, w - pad * 2), track_h)
+        cr.fill()
+
+        # draw trim range
+        try:
+            ts = max(self.project_start, min(self.trim_start, self.project_start + self.total))
+            te = max(self.project_start, min(self.trim_end or (self.project_start + self.total), self.project_start + self.total))
+            x1 = pad + self._sec_to_x(ts, w - pad * 2)
+            x2 = pad + self._sec_to_x(te, w - pad * 2)
+            cr.set_source_rgba(0.0, 0.6, 0.9, 0.25)
+            cr.rectangle(x1, pad, max(2, x2 - x1), track_h)
             cr.fill()
             # draw handles
-            cr.set_source_rgb(0.9, 0.9, 0.9)
-            cr.rectangle(x1, pad, 4, h - (pad * 2))
+            cr.set_source_rgb(0.0, 0.6, 0.9)
+            cr.rectangle(x1 - (self._handle_w//2), pad, self._handle_w, track_h)
+            cr.rectangle(x2 - (self._handle_w//2), pad, self._handle_w, track_h)
             cr.fill()
-            cr.rectangle(x2 - 4, pad, 4, h - (pad * 2))
+        except Exception:
+            pass
+
+        # draw items if present (project timeline)
+        if self.items and self.total > 0:
+            for i, it in enumerate(self.items):
+                try:
+                    s = float(it.get('start', 0) or 0)
+                    dur = float(it.get('duration', 0) or 0)
+                    if dur <= 0:
+                        continue
+                    rel_start = (s - self.project_start) / self.total if self.total > 0 else 0
+                    rel_end = ((s + dur) - self.project_start) / self.total if self.total > 0 else rel_start
+                    x1 = pad + int(rel_start * (w - pad * 2))
+                    x2 = pad + int(rel_end * (w - pad * 2))
+                    width = max(4, x2 - x1)
+                    base = 0.12 + ((i % 4) * 0.04)
+                    cr.set_source_rgb(base, 0.18, 0.22)
+                    cr.rectangle(x1 + 1, pad, width - 2, track_h)
+                    cr.fill()
+                except Exception:
+                    pass
+
+        # draw playhead
+        try:
+            px = pad + self._sec_to_x(self.playhead, w - pad * 2)
+            cr.set_source_rgb(1, 1, 1)
+            cr.rectangle(px - (self._playhead_w//2), pad, self._playhead_w, track_h)
             cr.fill()
-            # label
-            try:
-                lbl = it.get('label') or os.path.basename(it.get('filename', ''))
-                cr.set_source_rgb(1, 1, 1)
-                layout = Pango.Layout.new(self.get_pango_context())
-                layout.set_text(lbl, -1)
-                layout.set_width((width - 8) * Pango.SCALE)
-                layout.set_ellipsize(Pango.EllipsizeMode.END)
-                cr.move_to(x1 + 6, pad + 4)
-                PangoCairo.show_layout(cr, layout)
-            except Exception:
-                pass
+        except Exception:
+            pass
+
         return False
+
+    def _on_press(self, widget, event):
+        try:
+            if event.type != Gdk.EventType.BUTTON_PRESS:
+                return False
+            alloc = self.get_allocation()
+            w = alloc.width - self._pad * 2
+            x = int(event.x - self._pad)
+            # determine if click near left or right handle
+            left_x = self._sec_to_x(self.trim_start, w)
+            right_x = self._sec_to_x(self.trim_end or (self.project_start + self.total), w)
+            # tolerance
+            tol = max(8, self._handle_w)
+            if abs(x - left_x) <= tol:
+                self._drag_type = 'left'
+            elif abs(x - right_x) <= tol:
+                self._drag_type = 'right'
+            else:
+                # click-to-seek: update playhead and call on_seek
+                sec = self._x_to_sec(max(0, min(w, x)), w)
+                self.playhead = sec
+                if self.on_seek and 'on_seek' not in self._block_callbacks:
+                    try:
+                        self.on_seek(sec)
+                    except Exception:
+                        pass
+                self._drag_type = 'playhead'
+            self._dragging = True
+            self._drag_start_x = x
+            self.queue_draw()
+        except Exception:
+            pass
+        return True
+
+    def _on_motion(self, widget, event):
+        try:
+            if not self._dragging:
+                return False
+            alloc = self.get_allocation()
+            w = alloc.width - self._pad * 2
+            x = int(event.x - self._pad)
+            x = max(0, min(w, x))
+            sec = self._x_to_sec(x, w)
+            if self._drag_type == 'left':
+                # clamp
+                new_s = min(sec, self.trim_end if self.trim_end else (self.project_start + self.total))
+                self.trim_start = max(self.project_start, new_s)
+                if self.on_changed and 'on_changed' not in self._block_callbacks:
+                    try:
+                        self.on_changed(self.trim_start, self.trim_end)
+                    except Exception:
+                        pass
+            elif self._drag_type == 'right':
+                new_e = max(sec, self.trim_start)
+                self.trim_end = min(self.project_start + self.total, new_e)
+                if self.on_changed and 'on_changed' not in self._block_callbacks:
+                    try:
+                        self.on_changed(self.trim_start, self.trim_end)
+                    except Exception:
+                        pass
+            elif self._drag_type == 'playhead':
+                self.playhead = sec
+                if self.on_seek and 'on_seek' not in self._block_callbacks:
+                    try:
+                        self.on_seek(sec)
+                    except Exception:
+                        pass
+            self.queue_draw()
+        except Exception:
+            pass
+        return True
+
+    def _on_release(self, widget, event):
+        try:
+            self._dragging = False
+            self._drag_type = None
+            self._drag_start_x = 0
+        except Exception:
+            pass
+        self.queue_draw()
+        return True
 
 
 class TrimTool(Gtk.DrawingArea):
@@ -1931,7 +2126,8 @@ class NovaReplayWindow(Gtk.Window):
         left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         # allow the left panel to shrink and expand naturally
         try:
-            left_panel.set_size_request(-1, -1)
+            # ensure left media chooser has a reasonable minimum width
+            left_panel.set_size_request(100, -1)
             left_panel.set_hexpand(False)
             left_panel.set_vexpand(True)
         except Exception:
@@ -1947,7 +2143,7 @@ class NovaReplayWindow(Gtk.Window):
         self.editor_flow = Gtk.FlowBox()
         self.editor_flow.set_row_spacing(6)
         self.editor_flow.set_column_spacing(6)
-        self.editor_flow.set_max_children_per_line(2)
+        self.editor_flow.set_max_children_per_line(1)
         self.editor_flow.set_min_children_per_line(1)
         # allow single selection so users can pick another clip while one is playing
         try:
@@ -1958,127 +2154,7 @@ class NovaReplayWindow(Gtk.Window):
         self.editor_flow_scrolled.add(self.editor_flow)
         left_panel.pack_start(self.editor_flow_scrolled, True, True, 0)
 
-        media_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        add_btn = Gtk.Button(label='Add')
-        def _on_add_media(_):
-            dlg = Gtk.FileChooserDialog(title='Add Media', parent=self, action=Gtk.FileChooserAction.OPEN)
-            dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, 'Add', Gtk.ResponseType.OK)
-            dlg.set_select_multiple(True)
-            # allow common video/audio extensions
-            flt = Gtk.FileFilter()
-            flt.set_name('Media files')
-            for ext in ('.mp4', '.mkv', '.mov', '.webm', '.avi', '.mp3', '.wav', '.flac', '.ogg'):
-                flt.add_pattern('*' + ext)
-            dlg.add_filter(flt)
-            res = dlg.run()
-            if res == Gtk.ResponseType.OK:
-                added = False
-                for fp in dlg.get_filenames():
-                    try:
-                        os.makedirs(recorder.RECORDINGS_DIR, exist_ok=True)
-                        dest = os.path.join(recorder.RECORDINGS_DIR, os.path.basename(fp))
-                        # if same file exists, append a uuid suffix
-                        if os.path.exists(dest):
-                            base, ext = os.path.splitext(dest)
-                            dest = f"{base}_{uuid.uuid4().hex[:6]}{ext}"
-                        shutil.copy2(fp, dest)
-                        added = True
-                        # probe metadata (ffprobe) if available
-                        meta = {}
-                        if shutil.which('ffprobe'):
-                            try:
-                                out = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:format_tags=title', '-of', 'default=noprint_wrappers=1', dest], text=True, errors='ignore')
-                                for line in out.splitlines():
-                                    if line.startswith('duration='):
-                                        try:
-                                            meta['duration'] = float(line.split('=',1)[1].strip())
-                                        except Exception:
-                                            meta['duration'] = 0.0
-                                    elif line.startswith('TAG:title='):
-                                        meta['title'] = line.split('=',1)[1]
-                            except Exception:
-                                meta = {}
-                        # fallback: attempt to use GStreamer duration if Gst available
-                        if not meta.get('duration') and Gst:
-                            try:
-                                # create a temporary playbin to query duration
-                                pb = Gst.ElementFactory.make('playbin', 'tmp')
-                                pb.set_property('uri', Gst.filename_to_uri(dest))
-                                pb.set_state(Gst.State.PAUSED)
-                                ok, dur = pb.query_duration(Gst.Format.TIME)
-                                if ok and dur > 0:
-                                    meta['duration'] = dur / Gst.SECOND
-                                pb.set_state(Gst.State.NULL)
-                            except Exception:
-                                pass
-                        # store metadata cache
-                        self._media_meta[os.path.basename(dest)] = meta
-                    except Exception:
-                        pass
-                if added:
-                    self.refresh_clips()
-                    self._populate_editor_list()
-            dlg.destroy()
-        add_btn.connect('clicked', _on_add_media)
-        rm_btn = Gtk.Button(label='Remove')
-        def _on_remove_media(_):
-            sel = self.get_selected_clip()
-            if not sel:
-                return
-            try:
-                move_to_trash(sel)
-                self.refresh_clips()
-                self._populate_editor_list()
-            except Exception:
-                pass
-        rm_btn.connect('clicked', _on_remove_media)
-        media_btn_box.pack_start(add_btn, True, True, 0)
-        media_btn_box.pack_start(rm_btn, True, True, 0)
-        # Add to Timeline button
-        add_tl_btn = Gtk.Button(label='Add to Timeline')
-        def _on_add_to_timeline(_):
-            try:
-                sel = self.get_selected_clip()
-                if not sel:
-                    self._alert('Select a clip from the editor list first')
-                    return
-                # determine duration from metadata or probe
-                base = os.path.basename(sel)
-                meta = self._media_meta.get(base, {})
-                dur = float(meta.get('duration') or 0)
-                if dur <= 0:
-                    # fallback: attempt GStreamer probe
-                    if Gst:
-                        try:
-                            pb = Gst.ElementFactory.make('playbin', 'tmpprobe')
-                            pb.set_property('uri', Gst.filename_to_uri(sel))
-                            pb.set_state(Gst.State.PAUSED)
-                            ok, dur_ns = pb.query_duration(Gst.Format.TIME)
-                            if ok and dur_ns > 0:
-                                dur = dur_ns / Gst.SECOND
-                            pb.set_state(Gst.State.NULL)
-                        except Exception:
-                            pass
-                if dur <= 0:
-                    dur = 10.0
-                # append at end of project timeline
-                end = 0.0
-                if self.project_timeline:
-                    end = max((it.get('start', 0) + it.get('duration', 0)) for it in self.project_timeline)
-                it = {'filename': sel, 'start': end, 'duration': dur, 'label': os.path.basename(sel)}
-                self.project_timeline.append(it)
-                # push undo action
-                try:
-                    self._undo_stack.append({'type': 'add', 'item': it})
-                    self._redo_stack.clear()
-                except Exception:
-                    pass
-                self._refresh_timeline()
-            except Exception:
-                pass
-        add_tl_btn.connect('clicked', _on_add_to_timeline)
-        media_btn_box.pack_start(add_tl_btn, True, True, 0)
-        left_panel.pack_start(media_btn_box, False, False, 0)
+        # media action buttons removed (managed from Export/Tools)
 
         # use a resizable paned layout: left media panel resizable, center+right fixed
         center_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -2111,41 +2187,41 @@ class NovaReplayWindow(Gtk.Window):
         # playback controls
         ctrl_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.play_toggle = Gtk.ToggleButton()
-        self.play_toggle.add(Gtk.Image.new_from_icon_name('media-playback-start', Gtk.IconSize.MENU))
+        # keep a reference to the image so we can swap icons later
+        self.play_img = Gtk.Image.new_from_icon_name('media-playback-start', Gtk.IconSize.MENU)
+        self.play_toggle.add(self.play_img)
         self.play_toggle.set_tooltip_text('Play / Pause')
         self.play_toggle.connect('toggled', lambda w: self.on_play(w))
         ctrl_box.pack_start(self.play_toggle, False, False, 0)
 
         self.time_label = Gtk.Label(label='00:00 / 00:00')
         self.time_label.set_xalign(0)
+        # last playhead UI update time (seconds) to throttle redraws
+        self._last_playhead_update = None
         ctrl_box.pack_start(self.time_label, False, False, 6)
 
-        # timeline slider for seeking
-        self.timeline = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 1, 0.01)
+        # unified timeline widget for seeking and trimming
+        self.timeline = Timeline()
         self.timeline.set_hexpand(True)
-        self.timeline.set_value_pos(Gtk.PositionType.RIGHT)
-        self.timeline.connect('value-changed', self._on_timeline_changed)
+        # compatibility: hook up a seek adapter for the timeline's on_seek callback
+        self.timeline.on_seek = self._on_timeline_seek
+        # when user updates trim handles, record last trim
+        def _on_trim_changed(s, e):
+            try:
+                self._last_trim = (s, e)
+            except Exception:
+                pass
+        self.timeline.on_changed = _on_trim_changed
+        # keep `trim_tool` name for backward compatibility
+        self.trim_tool = self.timeline
         ctrl_box.pack_start(self.timeline, True, True, 0)
         center_panel.pack_start(ctrl_box, False, False, 0)
 
-        # Trim tool (interactive GUI) placed under playback controls
-        try:
-            self.trim_tool = TrimTool()
-            # when the user updates trim via GUI, store values (non-blocking)
-            def _on_trim_changed(s, e):
-                try:
-                    # reflect in internal state; UI-driven
-                    self._last_trim = (s, e)
-                except Exception:
-                    pass
-            self.trim_tool.on_changed = _on_trim_changed
-            center_panel.pack_start(self.trim_tool, False, False, 0)
-        except Exception:
-            self.trim_tool = None
-        # Save As button remains for exporting
-        save_btn = Gtk.Button(label='Save As...')
-        save_btn.connect('clicked', self.on_save_as)
-        center_panel.pack_start(save_btn, False, False, 0)
+        # play selection toggle: when active, playback will stop at trim end
+        self.play_selection_toggle = Gtk.ToggleButton(label='Play Range')
+        self.play_selection_toggle.set_tooltip_text('Play only the selected trim range')
+        ctrl_box.pack_start(self.play_selection_toggle, False, False, 6)
+        # (Removed secondary Save As button — exporting is available from the Export action)
 
         # build center+right composite so paned can contain them as a single child
         center_right = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -2166,39 +2242,14 @@ class NovaReplayWindow(Gtk.Window):
         # Tools actions: Save, Save Copy, Import
         tools_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         try:
-            save_btn2 = Gtk.Button(label='Save')
-            save_btn2.set_tooltip_text('Save current clip / project (Save As...)')
+            save_btn2 = Gtk.Button(label='Overwrite')
+            save_btn2.set_tooltip_text('Overwrite current clip / project')
             save_btn2.connect('clicked', lambda w: self.on_save_as())
-            tools_box.pack_start(save_btn2, False, False, 0)
+            # moved to export_box below
+            # tools_box.pack_start(save_btn2, False, False, 0)
         except Exception:
             pass
 
-        try:
-            def _on_save_copy(_):
-                sel = self.get_selected_clip()
-                if not sel:
-                    self._alert('Select a clip first')
-                    return
-                dlg = Gtk.FileChooserDialog(title='Save Copy As', parent=self, action=Gtk.FileChooserAction.SAVE)
-                dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, 'Save Copy', Gtk.ResponseType.OK)
-                dlg.set_current_name(os.path.basename(sel))
-                res = dlg.run()
-                if res == Gtk.ResponseType.OK:
-                    dest = dlg.get_filename()
-                    dlg.destroy()
-                    try:
-                        shutil.copy2(sel, dest)
-                        self._alert(f'Copied -> {dest}')
-                        self.refresh_clips()
-                    except Exception as e:
-                        self._alert(f'Copy failed: {e}')
-                else:
-                    dlg.destroy()
-
-            save_copy_btn = Gtk.Button(label='Save Copy')
-            save_copy_btn.set_tooltip_text('Save a copy of the selected clip')
-            save_copy_btn.connect('clicked', _on_save_copy)
-            tools_box.pack_start(save_copy_btn, False, False, 0)
         except Exception:
             pass
 
@@ -2233,12 +2284,19 @@ class NovaReplayWindow(Gtk.Window):
             if not sel:
                 self._alert('Select a clip first')
                 return
+            # Prefer explicit entries, but fall back to the timeline's trim if entries are not present
             try:
                 start = float(self.start_entry.get_text())
                 end = float(self.end_entry.get_text())
             except Exception:
-                self._alert('Invalid start/end')
-                return
+                try:
+                    if getattr(self, 'trim_tool', None):
+                        start, end = self.trim_tool.get_trim()
+                    else:
+                        raise
+                except Exception:
+                    self._alert('Invalid start/end')
+                    return
             # ask for destination
             dlg = Gtk.FileChooserDialog(title='Export Trimmed Clip', parent=self, action=Gtk.FileChooserAction.SAVE)
             dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, 'Export', Gtk.ResponseType.OK)
@@ -2246,9 +2304,37 @@ class NovaReplayWindow(Gtk.Window):
             if res == Gtk.ResponseType.OK:
                 out = dlg.get_filename()
                 dlg.destroy()
-                # use ffmpeg to trim (fast copy)
+                # validate start/end
                 try:
-                    cmd = ['ffmpeg', '-y', '-ss', str(start), '-to', str(end), '-i', sel, '-c', 'copy', out]
+                    start = float(start)
+                    end = float(end)
+                except Exception:
+                    self._alert('Invalid start/end')
+                    return
+                if start < 0:
+                    start = 0.0
+                if end <= start:
+                    self._alert('Invalid start/end (end must be > start)')
+                    return
+                duration = end - start
+                # ensure output filename has an extension; default to source's
+                try:
+                    src_ext = os.path.splitext(sel)[1]
+                    if not src_ext:
+                        src_ext = '.mp4'
+                except Exception:
+                    src_ext = '.mp4'
+                try:
+                    out_root, out_ext = os.path.splitext(out)
+                    if not out_ext:
+                        out = out + src_ext
+                    # if user provided a different extension, leave as-is
+                except Exception:
+                    out = out + src_ext
+
+                # use ffmpeg to trim (fast copy) with duration (-t) to ensure correct range
+                try:
+                    cmd = ['ffmpeg', '-y', '-ss', str(start), '-t', str(duration), '-i', sel, '-c', 'copy', out]
                     threading.Thread(target=subprocess.call, args=(cmd,), daemon=True).start()
                     self._alert(f'Exporting -> {out}')
                 except Exception as e:
@@ -2258,6 +2344,14 @@ class NovaReplayWindow(Gtk.Window):
 
         export_btn.connect('clicked', _on_export)
         export_box.pack_start(export_btn, False, False, 0)
+        # place Overwrite button under Export
+        try:
+            try:
+                export_box.pack_start(save_btn2, False, False, 0)
+            except Exception:
+                pass
+        except Exception:
+            pass
         right_panel.pack_start(export_box, False, False, 0)
 
         center_right.pack_start(right_panel, False, False, 6)
@@ -2601,45 +2695,28 @@ class NovaReplayWindow(Gtk.Window):
         out_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         out_lbl = Gtk.Label(label="Recordings folder:")
         out_lbl.set_xalign(0)
-        out_box.pack_start(out_lbl, True, True, 0)
-        self.out_entry = Gtk.Entry()
-        self.out_entry.set_text(recorder.RECORDINGS_DIR)
-        self.out_entry.set_editable(False)
-        try:
-            self.out_entry.set_tooltip_text('Current recordings folder.')
-        except Exception:
-            pass
-        out_box.pack_start(self.out_entry, True, True, 0)
+        out_box.pack_start(out_lbl, False, False, 0)
 
-        open_out = Gtk.Button(label="Open")
-        def open_dir(_):
-            path = recorder.RECORDINGS_DIR
-            if os.path.exists(path):
-                subprocess.Popen(["xdg-open", path])
-            else:
-                self._alert("Recordings folder not found")
-        open_out.connect('clicked', open_dir)
-        try:
-            open_out.set_tooltip_text('Open the recordings folder in your file manager.')
-        except Exception:
-            pass
-        out_box.pack_start(open_out, False, False, 0)
-
-        change_btn = Gtk.Button(label="Change...")
+        change_btn = Gtk.Button(label='Change...')
         def change_dir(_):
-            dlg = Gtk.FileChooserDialog(title="Select Recordings Folder", parent=self, action=Gtk.FileChooserAction.SELECT_FOLDER)
-            dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Select", Gtk.ResponseType.OK)
-            res = dlg.run()
-            if res == Gtk.ResponseType.OK:
-                newp = dlg.get_filename()
+            dlg = Gtk.FileChooserDialog(title='Select recordings folder', parent=getattr(self, 'win', None), action=Gtk.FileChooserAction.SELECT_FOLDER)
+            dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
+            try:
+                # prefer current recorder setting if present
+                cur = getattr(recorder, 'RECORDINGS_DIR', None)
+                if cur:
+                    dlg.set_current_folder(cur)
+            except Exception:
+                pass
+            resp = dlg.run()
+            if resp == Gtk.ResponseType.OK:
+                folder = dlg.get_filename()
                 try:
-                    recorder.set_recordings_dir(newp)
-                    self.out_entry.set_text(recorder.RECORDINGS_DIR)
-                    # update thumbnails dir and refresh
-                    self.thumbs_dir = os.path.join(recorder.RECORDINGS_DIR, 'thumbnails')
-                    os.makedirs(self.thumbs_dir, exist_ok=True)
-                    self.refresh_clips()
-                    # persist immediately
+                    try:
+                        recorder.RECORDINGS_DIR = folder
+                    except Exception:
+                        pass
+                    self.settings['recordings_dir'] = folder
                     try:
                         self.save_settings()
                     except Exception:
@@ -2918,39 +2995,8 @@ class NovaReplayWindow(Gtk.Window):
         # Optional global hotkey manager (best-effort)
         self.hotkeys = HotkeyManager(self.toggle_recording)
         self.hotkeys.start()
-        # timeline widget (editor rail)
-        try:
-            self.timeline_widget = Timeline()
-            # seek callback: jump preview/time slider
-            def _on_timeline_seek(sec):
-                try:
-                    # set timeline/preview position if playing
-                    if getattr(self, 'timeline', None):
-                        try:
-                            self.timeline.handler_block_by_func(self._on_timeline_changed)
-                        except Exception:
-                            pass
-                        self.timeline.set_value(sec)
-                        try:
-                            self.timeline.handler_unblock_by_func(self._on_timeline_changed)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-            self.timeline_widget.on_seek = _on_timeline_seek
-            # selection and change callbacks
-            try:
-                self.timeline_widget.on_select = self._on_timeline_select
-                self.timeline_widget.on_changed = self._on_timeline_changed
-            except Exception:
-                pass
-            # place timeline below preview container if possible
-            try:
-                center_panel.pack_start(self.timeline_widget, False, False, 6)
-            except Exception:
-                pass
-        except Exception:
-            self.timeline_widget = None
+        # No separate secondary timeline: use the main inline `self.timeline` for trimming/seeking.
+        self.timeline_widget = None
         # start background process watcher for game auto-detection
         try:
             self._start_process_watcher()
@@ -3505,13 +3551,23 @@ class NovaReplayWindow(Gtk.Window):
                 pass
             # filename label removed from thumbnail view (keeps lower area for actions only)
 
-            # clicking selects
+            # clicking selects and updates preview
             def on_click(ev, p=path, widget=tile):
-                # simple selection highlight
-                self.selected_clip = p
-                for c in self.flow.get_children():
-                    c.get_style_context().remove_class('selected-tile')
-                widget.get_style_context().add_class('selected-tile')
+                try:
+                    # use select_clip to update preview and duration/trim
+                    self.select_clip(p)
+                except Exception:
+                    # fallback to simple assign
+                    try:
+                        self.selected_clip = p
+                    except Exception:
+                        pass
+                try:
+                    for c in self.flow.get_children():
+                        c.get_style_context().remove_class('selected-tile')
+                    widget.get_style_context().add_class('selected-tile')
+                except Exception:
+                    pass
             # hover enter/leave to swap to hover image
             def on_enter(w, event, widget_img=img):
                 try:
@@ -4201,21 +4257,26 @@ class NovaReplayWindow(Gtk.Window):
             else:
                 # clear preview widget and add placeholder image as main child
                 try:
-                    for c in list(self.preview_container.get_children()):
-                        try:
-                            if c is self._spinner:
-                                continue
-                            self.preview_container.remove(c)
-                        except Exception:
-                            pass
-                    try:
-                        self.preview_container.add(self.preview_widget)
-                    except Exception:
+                    # if currently playing with an embedded sink, do not replace it
+                    if getattr(self, 'playbin', None) and getattr(self, 'play_toggle', None) and self.play_toggle.get_active() and getattr(self, '_gst_sink', None):
+                        # leave the embedded sink widget in place
+                        pass
+                    else:
+                        for c in list(self.preview_container.get_children()):
+                            try:
+                                if c is self._spinner:
+                                    continue
+                                self.preview_container.remove(c)
+                            except Exception:
+                                pass
                         try:
                             self.preview_container.add(self.preview_widget)
                         except Exception:
-                            pass
-                    self.preview_widget.show()
+                            try:
+                                self.preview_container.add(self.preview_widget)
+                            except Exception:
+                                pass
+                        self.preview_widget.show()
                 except Exception:
                     pass
 
@@ -4261,7 +4322,21 @@ class NovaReplayWindow(Gtk.Window):
                     pass
             if getattr(self, 'trim_tool', None):
                 try:
-                    self.trim_tool.set_range(dur or 0, 0, dur or 0)
+                    # old TrimTool.set_range signature was (duration, start, end)
+                    # new Timeline.set_range expects (start, end)
+                    # set timeline/project range and initialize trim to full duration
+                    try:
+                        self.trim_tool.set_range(0, dur or 0)
+                    except Exception:
+                        try:
+                            # fallback for safety
+                            self.trim_tool.set_trim(0, dur or 0)
+                        except Exception:
+                            pass
+                    try:
+                        self.trim_tool.set_trim(0, dur or 0)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
         except Exception:
@@ -4351,6 +4426,23 @@ class NovaReplayWindow(Gtk.Window):
                         GLib.idle_add(self._embed_sink_widget)
                 # set desired state
                 if active:
+                    # If Play Range is active, ensure we start at trim start
+                    try:
+                        if getattr(self, 'play_selection_toggle', None) and getattr(self.play_selection_toggle, 'get_active', None) and self.play_selection_toggle.get_active():
+                            try:
+                                ts = getattr(self.timeline, 'trim_start', None)
+                                te = getattr(self.timeline, 'trim_end', None)
+                                cur_ph = getattr(self.timeline, 'playhead', None)
+                                # only seek if playhead is outside the trim range
+                                if ts is not None and (cur_ph is None or cur_ph < ts or (te is not None and cur_ph > te)):
+                                    try:
+                                        self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, int(float(ts) * Gst.SECOND))
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
                     try:
                         self.playbin.set_state(Gst.State.PLAYING)
                     except Exception:
@@ -4358,7 +4450,7 @@ class NovaReplayWindow(Gtk.Window):
                     # start periodic update
                     try:
                         if not getattr(self, '_pos_update_id', None):
-                            self._pos_update_id = GLib.timeout_add(250, self._update_position)
+                            self._pos_update_id = GLib.timeout_add(300, self._update_position)
                     except Exception:
                         pass
                 else:
@@ -4373,6 +4465,21 @@ class NovaReplayWindow(Gtk.Window):
                             self._pos_update_id = None
                     except Exception:
                         pass
+                # update play/pause icon
+                try:
+                    if getattr(self, 'play_img', None):
+                        if active:
+                            try:
+                                self.play_img.set_from_icon_name('media-playback-pause', Gtk.IconSize.MENU)
+                            except Exception:
+                                pass
+                        else:
+                            try:
+                                self.play_img.set_from_icon_name('media-playback-start', Gtk.IconSize.MENU)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
                 return
             except Exception:
                 # if something unexpected happened, do not fall back to external popout
@@ -4393,35 +4500,103 @@ class NovaReplayWindow(Gtk.Window):
             if ok and ok2 and dur > 0:
                 cur = pos / Gst.SECOND
                 total = dur / Gst.SECOND
-                # update timeline and label in main loop
-                def _upd():
-                    try:
-                        self.time_label.set_text(f"{int(cur):02d}:{int(cur%60):02d} / {int(total):02d}:{int(total%60):02d}")
-                        try:
-                            self.timeline.handler_block_by_func(self._on_timeline_changed)
-                        except Exception:
-                            pass
-                        try:
-                            self.timeline.set_range(0, max(1, total))
-                            self.timeline.set_value(cur)
-                        except Exception:
-                            pass
-                        try:
-                            self.timeline.handler_unblock_by_func(self._on_timeline_changed)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                    return False
-                GLib.idle_add(_upd)
+                GLib.idle_add(self._update_position_ui, cur, total)
             return True
         except Exception:
             return False
 
+    def _format_hms(self, secs: float) -> str:
+        try:
+            s = int(secs)
+            h = s // 3600
+            m = (s % 3600) // 60
+            sec = s % 60
+            return f"{h}:{m:02d}:{sec:02d}"
+        except Exception:
+            return "0:00:00"
+
+    def _update_position_ui(self, cur, total):
+        try:
+            # update label
+            try:
+                self.time_label.set_text(f"{self._format_hms(cur)} / {self._format_hms(total)}")
+            except Exception:
+                pass
+                # update timeline range only when duration changes
+            try:
+                last_total = getattr(self, '_last_timeline_total', None)
+                if last_total is None or abs((total or 0) - (last_total or 0)) > 0.1:
+                    try:
+                        self.timeline.set_range(0, max(1, total))
+                    except Exception:
+                        pass
+                    self._last_timeline_total = total
+                # throttle playhead set to avoid flooding UI
+                last = getattr(self, '_last_playhead_update', None)
+                if last is None or abs((cur or 0) - (last or 0)) > 0.1:
+                    try:
+                        # update without forcing an immediate redraw every time
+                        try:
+                            self.timeline.set_value_silent(cur)
+                        except Exception:
+                            self.timeline.set_value(cur)
+                    except Exception:
+                        pass
+                    self._last_playhead_update = cur
+                # if play-selection mode, stop at trim end
+                try:
+                    if getattr(self, 'play_selection_toggle', None) and getattr(self.play_selection_toggle, 'get_active', None) and self.play_selection_toggle.get_active():
+                        te = getattr(self.timeline, 'trim_end', None)
+                        if te is not None and cur >= te:
+                            try:
+                                if getattr(self, 'playbin', None):
+                                    self.playbin.set_state(Gst.State.PAUSED)
+                            except Exception:
+                                pass
+                            try:
+                                if getattr(self, 'play_toggle', None):
+                                    self.play_toggle.set_active(False)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            # finished UI update
+        except Exception:
+            pass
+        return False
+
     def _alert(self, msg):
-        dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK, text=msg)
-        dialog.run()
-        dialog.destroy()
+        # Prefer a non-blocking desktop notification for informational alerts.
+        try:
+            if Notify:
+                try:
+                    n = Notify.Notification.new("Nova Replay", str(msg), None)
+                    n.show()
+                    return
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Fallback to `notify-send` command if available
+        try:
+            subprocess.Popen(["notify-send", "Nova Replay", str(msg)])
+            return
+        except Exception:
+            pass
+
+        # Final fallback: modal GTK message dialog
+        try:
+            dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK, text=str(msg))
+            dialog.run()
+            dialog.destroy()
+        except Exception:
+            # last resort: print to stderr
+            try:
+                sys.stderr.write(str(msg) + "\n")
+            except Exception:
+                pass
 
     def _fill_editor_list(self, on_activate_cb):
         try:
@@ -4490,12 +4665,15 @@ class NovaReplayWindow(Gtk.Window):
     # Timeline helpers
     def _refresh_timeline(self):
         try:
-            if getattr(self, 'timeline_widget', None):
-                # convert project_timeline into items for timeline_widget
-                items = []
-                for it in self.project_timeline:
-                    items.append({'filename': it.get('filename'), 'start': float(it.get('start', 0)), 'duration': float(it.get('duration', 0)), 'label': it.get('label')})
-                self.timeline_widget.set_items(items)
+            # convert project_timeline into items for the single timeline widget
+            items = []
+            for it in self.project_timeline:
+                items.append({'filename': it.get('filename'), 'start': float(it.get('start', 0)), 'duration': float(it.get('duration', 0)), 'label': it.get('label')})
+            if getattr(self, 'timeline', None):
+                try:
+                    self.timeline.set_items(items)
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -4575,12 +4753,53 @@ class NovaReplayWindow(Gtk.Window):
             pb = Gst.ElementFactory.make('playbin', 'playbin')
             if not pb:
                 return None
-            # prefer gtksink if available for easy GTK embedding
-            sink = Gst.ElementFactory.make('gtksink', 'gtksink')
+            # prefer gtksink first (embeddable), then try glimagesink only if embeddable,
+            # then vaapisink as a last resort. This avoids sinks that pop out their own window.
+            sink = None
+            try:
+                sink = Gst.ElementFactory.make('gtksink', 'gtksink')
+            except Exception:
+                sink = None
+            if not sink:
+                try:
+                    tmp = Gst.ElementFactory.make('glimagesink', 'glimagesink')
+                    # ensure the sink provides an embeddable widget property (some builds pop out)
+                    embeddable = False
+                    try:
+                        _ = tmp.props.widget
+                        embeddable = True
+                    except Exception:
+                        embeddable = False
+                    if embeddable:
+                        sink = tmp
+                    else:
+                        try:
+                            tmp.set_state(Gst.State.NULL)
+                        except Exception:
+                            pass
+                        sink = None
+                except Exception:
+                    sink = None
+            # last resort: vaapisink
+            if not sink:
+                try:
+                    sink = Gst.ElementFactory.make('vaapisink', 'vaapisink')
+                except Exception:
+                    sink = None
             if sink:
-                pb.set_property('video-sink', sink)
-                self._gst_sink = sink
-                self._appsink = None
+                try:
+                    pb.set_property('video-sink', sink)
+                    self._gst_sink = sink
+                    self._appsink = None
+                    try:
+                        fac = sink.get_factory()
+                        self._chosen_video_sink = fac.get_name() if fac else sink.get_name()
+                    except Exception:
+                        self._chosen_video_sink = getattr(sink, 'name', str(sink))
+                except Exception:
+                    self._gst_sink = None
+                    self._appsink = None
+                    self._chosen_video_sink = None
             else:
                 # gtksink not available: create an appsink pipeline and render into a Gtk.DrawingArea
                 try:
@@ -4618,6 +4837,12 @@ class NovaReplayWindow(Gtk.Window):
             pb.set_property('uri', uri)
             # store
             self.playbin = pb
+            try:
+                # record chosen sink name for diagnostics
+                if getattr(self, '_chosen_video_sink', None):
+                    GLib.idle_add(lambda: setattr(self, '_last_used_sink', self._chosen_video_sink))
+            except Exception:
+                pass
             # attach bus
             bus = pb.get_bus()
             bus.add_signal_watch()
@@ -4638,6 +4863,23 @@ class NovaReplayWindow(Gtk.Window):
             # if using gtksink, embed its widget
             if getattr(self, '_gst_sink', None):
                 widget = self._gst_sink.props.widget
+                # if the sink widget is already present, ensure it's sized and return
+                try:
+                    for c in list(self.preview_container.get_children()):
+                        if c is widget:
+                            try:
+                                widget.set_hexpand(True)
+                                widget.set_vexpand(True)
+                                widget.set_halign(Gtk.Align.FILL)
+                                widget.set_valign(Gtk.Align.FILL)
+                                widget.set_size_request(640, 360)
+                            except Exception:
+                                pass
+                            widget.show()
+                            self.preview_container.show()
+                            return
+                except Exception:
+                    pass
                 # remove previous non-spinner children
                 for c in list(self.preview_container.get_children()):
                     try:
@@ -4648,6 +4890,15 @@ class NovaReplayWindow(Gtk.Window):
                         pass
                 # add sink widget as main child
                 try:
+                    # ensure sink widget can expand to fill the preview area
+                    try:
+                        widget.set_hexpand(True)
+                        widget.set_vexpand(True)
+                        widget.set_halign(Gtk.Align.FILL)
+                        widget.set_valign(Gtk.Align.FILL)
+                        widget.set_size_request(640, 360)
+                    except Exception:
+                        pass
                     self.preview_container.add(widget)
                 except Exception:
                     try:
@@ -4765,7 +5016,14 @@ class NovaReplayWindow(Gtk.Window):
                     else:
                         # keep a reference to raw data to prevent GC
                         self._appsink_frame_ref = raw
-                        self._appsink_pixbuf = pb
+                        # store original pixbuf and invalidate any cached scaled version
+                        self._appsink_pixbuf_orig = pb
+                        try:
+                            if hasattr(self, '_appsink_scaled_pixbuf'):
+                                del self._appsink_scaled_pixbuf
+                            self._appsink_last_alloc = None
+                        except Exception:
+                            pass
                         # ensure drawing area exists and queue a redraw
                         if getattr(self, '_appsink_draw', None):
                             GLib.idle_add(self._appsink_draw.queue_draw)
@@ -4786,8 +5044,8 @@ class NovaReplayWindow(Gtk.Window):
 
     def _on_draw_appsink(self, widget, cr):
         try:
-            if getattr(self, '_appsink_pixbuf', None):
-                pb = self._appsink_pixbuf
+            if getattr(self, '_appsink_pixbuf_orig', None):
+                pb = self._appsink_pixbuf_orig
                 # scale pixbuf to widget allocation while preserving aspect
                 alloc = widget.get_allocation()
                 iw = pb.get_width(); ih = pb.get_height()
@@ -4796,15 +5054,34 @@ class NovaReplayWindow(Gtk.Window):
                     scale = min(alloc.width / iw, alloc.height / ih)
                     nw = int(iw * scale)
                     nh = int(ih * scale)
-                    scaled = pb.scale_simple(nw, nh, GdkPixbuf.InterpType.BILINEAR)
-                    x = int((alloc.width - nw) / 2)
-                    y = int((alloc.height - nh) / 2)
-                    Gdk.cairo_set_source_pixbuf(cr, scaled, x, y)
+                    # reuse cached scaled pixbuf when possible
+                    need_rescale = True
                     try:
-                        cr.paint()
+                        last = getattr(self, '_appsink_last_alloc', None)
+                        if last and last[0] == alloc.width and last[1] == alloc.height and getattr(self, '_appsink_scaled_pixbuf', None):
+                            need_rescale = False
                     except Exception:
-                        pass
-                    return False
+                        need_rescale = True
+                    if need_rescale:
+                        try:
+                            self._appsink_scaled_pixbuf = pb.scale_simple(nw, nh, GdkPixbuf.InterpType.BILINEAR)
+                            self._appsink_last_alloc = (alloc.width, alloc.height)
+                        except Exception:
+                            try:
+                                self._appsink_scaled_pixbuf = pb.scale_simple(nw, nh, GdkPixbuf.InterpType.NEAREST)
+                                self._appsink_last_alloc = (alloc.width, alloc.height)
+                            except Exception:
+                                self._appsink_scaled_pixbuf = None
+                    scaled = getattr(self, '_appsink_scaled_pixbuf', None)
+                    if scaled:
+                        x = int((alloc.width - nw) / 2)
+                        y = int((alloc.height - nh) / 2)
+                        Gdk.cairo_set_source_pixbuf(cr, scaled, x, y)
+                        try:
+                            cr.paint()
+                        except Exception:
+                            pass
+                        return False
         except Exception:
             pass
         # draw placeholder background if no frame
@@ -4888,21 +5165,35 @@ class NovaReplayWindow(Gtk.Window):
                 ok, pos = self.playbin.query_position(Gst.Format.TIME)
                 if ok:
                     cur = pos / Gst.SECOND
-            self.time_label.set_text(f"{int(cur):02d}:{int(cur%60):02d} / {int(secs):02d}:{int(secs%60):02d}")
-            # set slider range
+            try:
+                self.time_label.set_text(f"{self._format_hms(cur)} / {self._format_hms(secs)}")
+            except Exception:
+                pass
+            # set timeline range
             try:
                 self.timeline.set_range(0, max(1, secs))
             except Exception:
                 pass
         except Exception:
             pass
-
     def _on_timeline_changed(self, widget):
         try:
             if not Gst or not getattr(self, 'playbin', None):
                 return
             val = widget.get_value()
             seek_ns = int(val * Gst.SECOND)
+            try:
+                self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, seek_ns)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _on_timeline_seek(self, sec):
+        try:
+            if not Gst or not getattr(self, 'playbin', None):
+                return
+            seek_ns = int(float(sec) * Gst.SECOND)
             try:
                 self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, seek_ns)
             except Exception:
