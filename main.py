@@ -1855,6 +1855,9 @@ class NovaReplayWindow(Gtk.Window):
         # search query for filtering thumbnails
         self.search_query = ''
         self._search_debounce_id = None
+        # sorting options
+        self.clip_sort_mode = 'date_created'  # date_created, date_modified, name, size
+        self.clip_sort_order = 'desc'  # asc, desc
         seg_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         seg_box.get_style_context().add_class('segmented')
         # container provides transparent background + dividing line
@@ -2028,6 +2031,54 @@ class NovaReplayWindow(Gtk.Window):
             b.connect('clicked', lambda w, m=mode: on_seg_clicked(w, m))
             seg_box.pack_start(b, False, False, 4)
             self._seg_buttons.append((b, mode))
+
+        # Sort dropdown (on the same row as tabs)
+        try:
+            self.sort_combo = Gtk.ComboBoxText()
+            # Add sort options: (display_text, mode, order)
+            sort_options = [
+                ('Date Created (Newest)', 'date_created', 'desc'),
+                ('Date Created (Oldest)', 'date_created', 'asc'),
+                ('Date Modified (Newest)', 'date_modified', 'desc'),
+                ('Date Modified (Oldest)', 'date_modified', 'asc'),
+                ('Name (A-Z)', 'name', 'asc'),
+                ('Name (Z-A)', 'name', 'desc'),
+                ('Size (Largest)', 'size', 'desc'),
+                ('Size (Smallest)', 'size', 'asc'),
+            ]
+            
+            # Store the options for retrieval later
+            self._sort_options = sort_options
+            
+            for display_text, mode, order in sort_options:
+                self.sort_combo.append(f"{mode}_{order}", display_text)
+            
+            # Set default to Date Created (Newest)
+            self.sort_combo.set_active_id('date_created_desc')
+            
+            # Make the combobox smaller
+            try:
+                self.sort_combo.set_size_request(180, -1)
+            except Exception:
+                pass
+            
+            def _on_sort_changed(combo):
+                try:
+                    active_id = combo.get_active_id()
+                    if active_id:
+                        for display_text, mode, order in sort_options:
+                            if f"{mode}_{order}" == active_id:
+                                self.clip_sort_mode = mode
+                                self.clip_sort_order = order
+                                self.refresh_clips()
+                                break
+                except Exception:
+                    pass
+            
+            self.sort_combo.connect('changed', _on_sort_changed)
+            seg_box.pack_end(self.sort_combo, False, False, 4)
+        except Exception:
+            pass
 
         # set initial active
         try:
@@ -3448,6 +3499,28 @@ class NovaReplayWindow(Gtk.Window):
                 files = [f for f in files if favs.get(f, False)]
         except Exception:
             pass
+        
+        # apply sorting
+        try:
+            sort_mode = getattr(self, 'clip_sort_mode', 'date_created')
+            sort_order = getattr(self, 'clip_sort_order', 'desc')
+            
+            if sort_mode == 'date_created':
+                # Sort by file creation time (use st_ctime which is available on Linux)
+                files = sorted(files, key=lambda f: os.stat(os.path.join(recorder.RECORDINGS_DIR, f)).st_ctime, reverse=(sort_order == 'desc'))
+            elif sort_mode == 'date_modified':
+                # Sort by file modification time
+                files = sorted(files, key=lambda f: os.stat(os.path.join(recorder.RECORDINGS_DIR, f)).st_mtime, reverse=(sort_order == 'desc'))
+            elif sort_mode == 'name':
+                # Sort by filename
+                files = sorted(files, key=lambda f: f.lower(), reverse=(sort_order == 'desc'))
+            elif sort_mode == 'size':
+                # Sort by file size
+                files = sorted(files, key=lambda f: os.stat(os.path.join(recorder.RECORDINGS_DIR, f)).st_size, reverse=(sort_order == 'desc'))
+        except Exception:
+            # If sorting fails, keep the current order
+            pass
+        
         for f in files:
             path = os.path.join(recorder.RECORDINGS_DIR, f)
             # build a tile
