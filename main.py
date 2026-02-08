@@ -1,4 +1,3 @@
-#Bambaclatttttttt
 #!/usr/bin/env python3
 import os
 import sys
@@ -49,7 +48,7 @@ from collections import deque
 import copy
 
 from datetime import datetime, timezone
-#newline
+
 
 def move_to_trash(path: str) -> str:
     """Move a file to the FreeDesktop Trash location and write a .trashinfo file.
@@ -706,154 +705,7 @@ class TrimTool(Gtk.DrawingArea):
                 pass
         return False
 
-    # Timeline interaction handlers (move/resize and drawing)
-    def _on_press(self, widget, event):
-        if event.button != 1:
-            return False
-        alloc = self.get_allocation()
-        x = event.x
-        w = float(max(1, alloc.width))
-        rel = x / w
-        # determine clicked item
-        pos = self.project_start + rel * self.total if self.total > 0 else self.project_start
-        for idx, it in enumerate(self.items):
-            s = float(it.get('start', 0) or 0)
-            dur = float(it.get('duration', 0) or 0)
-            if pos >= s and pos <= s + dur:
-                # inside this item
-                # determine if near left/right edge (10px tolerance)
-                # compute item's on-screen rect
-                start_rel = (s - self.project_start) / self.total if self.total > 0 else 0
-                end_rel = ((s + dur) - self.project_start) / self.total if self.total > 0 else 0
-                start_x = start_rel * w
-                end_x = end_rel * w
-                tol = 10
-                if abs(x - start_x) <= tol:
-                    self._drag_type = 'resize-left'
-                elif abs(x - end_x) <= tol:
-                    self._drag_type = 'resize-right'
-                else:
-                    self._drag_type = 'move'
-                self._dragging = True
-                self._drag_idx = idx
-                self._drag_start_x = x
-                self._orig_start = s
-                self._orig_duration = dur
-                if callable(self.on_select):
-                    try:
-                        self.on_select(idx)
-                    except Exception:
-                        pass
-                return True
-        # click on empty area -> seek
-        if self.total > 0:
-            sec = self.project_start + rel * self.total
-            if callable(self.on_seek):
-                try:
-                    self.on_seek(sec)
-                except Exception:
-                    pass
-        return True
-
-    def _on_motion(self, widget, event):
-        if not self._dragging or self._drag_idx is None:
-            return False
-        alloc = self.get_allocation()
-        w = float(max(1, alloc.width))
-        dx = event.x - self._drag_start_x
-        dt = (dx / w) * self.total if self.total > 0 else 0
-        idx = self._drag_idx
-        it = self.items[idx]
-        # snap grid (seconds)
-        snap = getattr(self, '_snap', 0.1)
-        if self._drag_type == 'move':
-            new_start = max(0.0, self._orig_start + dt)
-            if snap and snap > 0:
-                new_start = round(new_start / snap) * snap
-            it['start'] = new_start
-        elif self._drag_type == 'resize-left':
-            new_start = max(0.0, self._orig_start + dt)
-            if snap and snap > 0:
-                new_start = round(new_start / snap) * snap
-            new_dur = max(0.1, self._orig_duration - (new_start - self._orig_start))
-            if snap and snap > 0:
-                new_dur = max(0.1, round(new_dur / snap) * snap)
-            it['start'] = new_start
-            it['duration'] = new_dur
-        elif self._drag_type == 'resize-right':
-            new_dur = max(0.1, self._orig_duration + dt)
-            if snap and snap > 0:
-                new_dur = max(0.1, round(new_dur / snap) * snap)
-            it['duration'] = new_dur
-        self.queue_draw()
-        return True
-
-    def _on_release(self, widget, event):
-        if event.button != 1:
-            return False
-        if self._dragging:
-            self._dragging = False
-            self._drag_idx = None
-            self._drag_type = None
-            # inform selection changed (final)
-            if callable(self.on_select):
-                try:
-                    self.on_select(None)
-                except Exception:
-                    pass
-            # inform that items changed after drag
-            if callable(self.on_changed):
-                try:
-                    # give a deep copy to avoid mutation issues
-                    self.on_changed(copy.deepcopy(self.items))
-                except Exception:
-                    pass
-        return True
-
-    def _on_draw(self, widget, cr):
-        alloc = self.get_allocation()
-        w, h = alloc.width, alloc.height
-        # background
-        cr.set_source_rgb(0.06, 0.06, 0.06)
-        cr.rectangle(0, 0, w, h)
-        cr.fill()
-        if not self.items or self.total <= 0:
-            return False
-        pad = 6
-        for i, it in enumerate(self.items):
-            s = float(it.get('start', 0) or 0)
-            dur = float(it.get('duration', 0) or 0)
-            if dur <= 0:
-                continue
-            rel_start = (s - self.project_start) / self.total if self.total > 0 else 0
-            rel_end = ((s + dur) - self.project_start) / self.total if self.total > 0 else rel_start
-            x1 = int(rel_start * w)
-            x2 = int(rel_end * w)
-            width = max(4, x2 - x1)
-            # color variant
-            base = 0.12 + ((i % 4) * 0.04)
-            cr.set_source_rgb(base, 0.18, 0.22)
-            cr.rectangle(x1 + 1, pad, width - 2, h - (pad * 2))
-            cr.fill()
-            # draw handles
-            cr.set_source_rgb(0.9, 0.9, 0.9)
-            cr.rectangle(x1, pad, 4, h - (pad * 2))
-            cr.fill()
-            cr.rectangle(x2 - 4, pad, 4, h - (pad * 2))
-            cr.fill()
-            # label
-            try:
-                lbl = it.get('label') or os.path.basename(it.get('filename', ''))
-                cr.set_source_rgb(1, 1, 1)
-                layout = Pango.Layout.new(self.get_pango_context())
-                layout.set_text(lbl, -1)
-                layout.set_width((width - 8) * Pango.SCALE)
-                layout.set_ellipsize(Pango.EllipsizeMode.END)
-                cr.move_to(x1 + 6, pad + 4)
-                PangoCairo.show_layout(cr, layout)
-            except Exception:
-                pass
-        return False
+    # (duplicate timeline interaction block removed — TrimTool keeps its own handlers)
 
 class NovaReplayWindow(Gtk.Window):
     @staticmethod
