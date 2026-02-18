@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#make a arch linux AI assistant to keep hardware/software in check
+# #!/usr/bin/env python3
 import os
 import sys
 import subprocess
